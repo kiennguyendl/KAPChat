@@ -1,0 +1,43 @@
+//
+//  TextCell.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 17/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class TextCell: UITableViewCell {
+    
+    @IBOutlet weak var profileImg: UIImageView!
+    
+    @IBOutlet weak var usernameLbl: UILabel!
+    @IBOutlet weak var timeLbl: UILabel!
+    @IBOutlet weak var likeImg: UIImageView!
+    @IBOutlet weak var caption: UITextView!
+    @IBOutlet weak var likeLbl: UILabel!
+    
+    
+    
+
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        // Initialization code
+        profileImg.layer.cornerRadius = 0.5*profileImg.layer.bounds.size.width
+        profileImg.layer.masksToBounds = true
+        
+        let contentSize = caption.sizeThatFits(caption.bounds.size)
+        var frame = caption.frame
+        frame.size.height = contentSize.height
+        caption.frame = frame
+        // Initialization code
+    }
+
+    override func setSelected(_ selected: Bool, animated: Bool) {
+        super.setSelected(selected, animated: animated)
+
+        // Configure the view for the selected state
+    }
+
+}

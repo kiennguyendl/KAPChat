@@ -1,0 +1,23 @@
+//
+//  DataManager.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class DataManager: NSObject {
+    static var sharedInstance:DataManager!
+    
+    
+    class func defaultDataManager() -> DataManager{
+        if sharedInstance == nil {
+            sharedInstance = DataManager()
+            //sharedInstance.copyDataToDoc()
+        }
+        return sharedInstance
+    }
+
+}

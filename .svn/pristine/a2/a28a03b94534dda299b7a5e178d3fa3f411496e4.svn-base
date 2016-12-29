@@ -1,0 +1,67 @@
+//
+//  Post.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 08/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+enum PostType {
+    case Text, Photo
+}
+class Post:NSObject {
+    var postId: String?
+    var caption: String?
+    var imageUrl: String?
+    var type:PostType = .Text
+    var likes: Int = 0
+    var time:NSDate = NSDate()
+    private var _postRef: FIRDatabaseReference!
+//    private var postRef: FIRDatabaseReference!
+//    init?(postId: String, caption: String = "", imageUrl: String ,time: NSDate, likes: Int) {
+//        self.postId = postId
+//        self.caption = caption
+//        self.imageUrl = imageUrl
+//        self.likes = likes
+//        self.time = time
+//    }
+
+    init?(postID: String, postData: [String: AnyObject]) {
+        self.postId = postID
+        
+        if let caption = postData["caption"] as? String {
+            self.caption = caption
+        }
+        
+        if let imageUrl = postData["imageUrl"] as? String{
+            self.imageUrl = imageUrl
+        }
+        if let likes = postData["likes"] as? Int {
+            self.likes = likes
+        }
+        if let time2 = postData["time"] as? String {
+            let time3 = Double(time2)
+            self.time = NSDate(timeIntervalSince1970: time3!)
+        }
+        if let type = postData["type"] as? String {
+            if type == "text" {
+                self.type = .Text
+            }
+            else if type == "photo" {
+                self.type = .Photo
+            }
+        }
+        _postRef = DataService.ds.REF_POSTS.child(postId!)
+    }
+    func adjustLikes(addLike: Bool) {
+        if addLike {
+            likes = likes + 1
+        } else {
+            likes = likes - 1
+        }
+        _postRef.child("likes").setValue(likes)
+        
+    }
+}

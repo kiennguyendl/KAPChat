@@ -1,0 +1,127 @@
+//
+//  ConversationsViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class ConversationsViewController: BaseAuthenticatedViewController {
+    
+    var listChat = [RecentChat]()
+    // Cache downloaded image
+    var cacheImages = NSCache<AnyObject, AnyObject>()
+    //current user
+    var userCurrent:User?
+    //Check first load
+    var isFirstLoad = true
+    
+    // Data source from Firebase
+    //var messagesRef:FIRDatabaseReference!
+
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        getData()
+        // Do any additional setup after loading the view.
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+//        if isFirstLoad {
+//            isFirstLoad = false
+//            getData()
+//        }
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    
+    func getData(){
+        //self.pleaseWait()
+        
+        let usersRef            = self.fireBaseRef.child("Users")
+        let conversationsRef    = self.fireBaseRef.child("Conversations")
+        
+        // Load conversations of logged user
+        let currentuserID = "rDrUiP6YJEPfIxQ3xJVkvknkebo1"
+        usersRef.child(currentuserID).child("conversations")
+            .observeSingleEvent(of: .value, with: { (snap) in
+                if !(snap.value is NSNull) {
+                    if snap.children.allObjects.count == 0 {
+                        self.clearAllNotice()
+                        return
+                    }
+                    
+                    for item in snap.children.allObjects {
+                        guard let recentSnap = item as? FIRDataSnapshot else{ return }
+                        self.userCurrent?.conversations?[recentSnap.key] = recentSnap.value as? [String:String]
+                        
+                        // Khởi tạo data cho mỗi conversations
+                        let recentChat = RecentChat()
+                        recentChat.keyID = recentSnap.key
+                        
+                        // Lấy avatar url và user name bằng cách truy vấn vào id của user nhận chat
+                        usersRef.child(recentSnap.key).observeSingleEvent(of: .value, with: { (userSnap) in
+                            
+                            if let userDict = userSnap.value as? [String:AnyObject] {
+                                recentChat.avatarURL = userDict["avatar"] as! String
+                                recentChat.userDisplayName = userDict["displayName"] as! String
+                                
+                                recentChat.receiverUserID = userSnap.key
+                                let conversationKey = recentSnap.value as! String
+                                
+                                // Lấy thông tin last message
+                                conversationsRef.child(conversationKey).child("lastMessage").observeSingleEvent(of: .value, with: { (conversationSnap) in
+                                    
+                                    recentChat.lastestMess = conversationSnap.value as! String
+                                    
+                                    // Lấy thông tin thời gian của tin nhắn gần nhất
+                                    conversationsRef.child(conversationKey).child("lastTimeUpdated").observeSingleEvent(of: .value, with: { (timeSnap) in
+                                        recentChat.lastUpdatedTime = timeSnap.value as! Float
+                                        self.listChat.append(recentChat)
+                                        
+                                        if snap.children.allObjects.count == self.listChat.count {
+                                            self.updateUI()
+                                            
+                                            //self.listenConversationAddedFromFirebase()
+                                            //self.listenConversationRemovedFromFirebase()
+                                            //self.listenConversationUpdatedFromFirebase()
+                                        }
+                                    })
+                                })
+                            }
+                        })
+                    }
+                } else {
+                    self.updateUI()
+                }
+                
+            })
+    }
+    
+    private func updateUI() {
+        self.listChat = self.listChat.sorted {
+            $0.lastUpdatedTime > $1.lastUpdatedTime
+        }
+        
+        //self.tableView.reloadData()
+        self.clearAllNotice()
+    }
+    /*
+    // MARK: - Navigation
+
+    // In a storyboard-based application, you will often want to do a little preparation before navigation
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        // Get the new view controller using segue.destinationViewController.
+        // Pass the selected object to the new view controller.
+    }
+    */
+
+}

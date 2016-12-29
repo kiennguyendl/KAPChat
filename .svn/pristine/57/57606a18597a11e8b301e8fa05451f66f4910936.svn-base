@@ -1,0 +1,292 @@
+//
+//  ContactViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class ContactViewController: BaseAuthenticatedViewController {
+    
+    @IBOutlet weak var tableContact: UITableView!
+    var cache = NSCache<AnyObject,AnyObject>()
+    var dataList:[User] = [User]()
+    var userCurrent:User?
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        navigationItem.title = "CONTACT"
+        //add menu button in right navigationbar
+        //        let userButton = UIButton()
+        //        userButton.setImage(UIImage(named: "addfriend"), for: .normal)
+        //        userButton.frame = CGRect(origin: CGPoint(x: 10, y: 10), size: CGSize(width: 40, height: 40))
+        //        userButton.addTarget(self, action: #selector(self.showScreenAddFriend), for: .touchUpInside)
+        //        let rightBarButton = UIBarButtonItem()
+        //        rightBarButton.customView = userButton
+        //        self.navigationItem.rightBarButtonItem = rightBarButton
+        
+        //add menu button in left navigationbar
+        //        let menuButton = UIButton()
+        //        menuButton.setImage(UIImage(named: "contact"), for: .normal)
+        //        menuButton.frame = CGRect(origin: CGPoint(x: 10, y: 10), size: CGSize(width: 40, height: 40))
+        //        menuButton.addTarget(self, action: #selector(self.showScreenAddFriend), for: .touchUpInside)
+        //        let leftBarButton = UIBarButtonItem()
+        //        leftBarButton.customView = menuButton
+        //        self.navigationItem.leftBarButtonItem = leftBarButton
+        
+        //set up table view
+        tableContact.delegate = self
+        tableContact.dataSource = self
+        tableContact.rowHeight = UITableViewAutomaticDimension
+        tableContact.estimatedRowHeight = 100
+        tableContact.register(UINib(nibName: "ContactTableViewCell", bundle: nil), forCellReuseIdentifier: "cell")
+        
+        
+        //self.startLoading()
+        getData()
+        
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        //self.startLoading()
+    }
+    //    deinit {
+    //        self.fireBaseRef.removeAllObservers()
+    //    }
+    
+    func showScreenAddFriend() {
+        let vc = AddFriendViewController()
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    //Lấy data của mình và của bạn bè
+    func getData() {
+        self.startLoading()
+        let currentUserId   = self.currentuserID
+        //let currentUserId = "rDrUiP6YJEPfIxQ3xJVkvknkebo1"
+        self.fireBaseRef.child("Users").child(currentUserId).observeSingleEvent(of: .value, with: {(snap) in
+            
+            guard let userDict = snap.value as? [String:AnyObject] else { return }
+            
+            if let user = User(uid: snap.key, JsonData: userDict) {
+                self.userCurrent = user
+                //guard user.listFriend != nil else { return }
+                self.userCurrentListFriendAdd()
+                self.userCurrentListFriendDel()
+                self.stopLoading()
+            }
+            
+        })
+    }
+    
+    //Lắng nghe sự thay đổi của bạn bè
+    func userChangeInfo(data:[User]) {
+        if data.count > 0 {
+            for item in data {
+                self.fireBaseRef.child("Users").child(item.id).observe(.childChanged, with: {(snap) in
+                    if !(snap.value is NSNull) {
+                        
+                        for i in 0..<self.dataList.count {
+                            if item.id == self.dataList[i].id {
+                                
+                                self.dataList[i].setValue(snap.value, forKey: snap.key)
+                                let indexPath = IndexPath(row: i, section: 0)
+                                self.tableContact.reloadRows(at: [indexPath], with: .automatic)
+                                
+                            }
+                        }
+                    }
+                })
+            }
+        }
+    }
+    
+    //Lắng nghe khi có một contact mới được thêm vào
+    func userCurrentListFriendAdd() {
+        self.fireBaseRef.child("Users").child((userCurrent?.id)!).child("listFriend").observe(.childAdded, with: {(snap) in
+            if !(snap.value is NSNull) && !(snap.key.isEmpty){
+                self.fireBaseRef.child("Users").child(snap.key).observeSingleEvent(of: .value, with: {(snap) in
+                    guard let userDict = snap.value as? [String:AnyObject] else { return }
+                    if let userNew = User(uid: snap.key, JsonData: userDict) {
+                        
+                        self.dataList.append(userNew)
+                        self.userChangeInfo(data: [userNew])
+                        let indexPath = IndexPath(row: self.dataList.count - 1, section: 0)
+                        self.tableContact.insertRows(at: [indexPath], with: .automatic)
+                    }
+                                                                                    
+                })
+            }
+        })
+    }
+    
+    
+    //Lắng nghe khi có một người bạn bị xoá
+    func userCurrentListFriendDel() {
+        self.fireBaseRef.child("Users").child((userCurrent?.id)!).child("listFriend").observe(.childRemoved, with: {(snap) in
+            if !(snap.value is NSNull) && !(snap.key.isEmpty){
+                for user in self.dataList{
+                    if user.id == snap.key{
+                        if let index = self.dataList.index(of: user){
+                            self.dataList.remove(at: index)
+                            let indexPath = IndexPath(row: index, section: 0)
+                            self.tableContact.deleteRows(at: [indexPath], with: .automatic)
+                        }
+                        
+                    }
+                }
+            }
+        })
+    }
+    
+    func pushToChatDetails(withRoomKey:String) {
+        self.clearAllNotice()
+        
+        let chatVC = ChatViewController()
+        chatVC.conversationKey = withRoomKey
+        self.navigationController?.pushViewController(chatVC, animated: true)
+    }
+    
+    func createConversationWith(user: User) {
+        
+        
+        guard let userCur = userCurrent else { return }
+        
+        let newRoomChatRef = self.fireBaseRef.child("Conversations").childByAutoId()
+        
+        let conversationData = [
+            "lastMessage"       : "",
+            "lastTimeUpdated"   : NSDate().timeIntervalSince1970,
+            "name"              : [
+                userCur.id : user.displayName,
+                user.id    : userCur.displayName
+            ]
+            ] as [String : Any]
+        
+        newRoomChatRef.setValue(conversationData) { (err, ref) in
+            if err == nil {
+                let userConversationData = [
+                    "isLoading": false,
+                    "type": "personal"
+                    ] as [String : Any]
+                self.fireBaseRef.child("Users/\(user.id)/conversations/\(newRoomChatRef.key)").setValue(userConversationData)
+                self.fireBaseRef.child("Users/\(userCur.id)/conversations/\(newRoomChatRef.key)").setValue(userConversationData)
+                
+                self.pushToChatDetails(withRoomKey: newRoomChatRef.key)
+            }
+        }
+    }
+    
+    
+    
+}
+
+extension ContactViewController: UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return dataList.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        var cell = tableView.dequeueReusableCell(withIdentifier: "cell") as? ContactTableViewCell
+        if cell == nil {
+            cell = ContactTableViewCell()
+        }
+        let userFriend = dataList[indexPath.row]
+        cell?.lblNameContact.text = userFriend.displayName
+        cell?.lblFeeling.text = userFriend.status
+        cell?.viewStatus.backgroundColor = userFriend.isOnline == true ? UIColor.green : UIColor.gray
+        let newSize = CGSize(width: 44, height: 44)
+        
+        //Kiểm tra hình này đã cache chưa nối có thì lấy ra xài
+        if let avtDownloaded = cache.object(forKey: userFriend.avatarUrl as AnyObject) as? UIImage {
+            cell?.imgContact.image = avtDownloaded
+        } else {
+            //Chứa cache thì lấy hình online và resize , Radius hình
+            cell?.imgContact.image = UIImage.imageWithColor(UIColor.lightGray, size: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+            
+            DispatchQueue.global().async {
+                if let url = URL(string: userFriend.avatarUrl) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+                                //Cache hình vào ram
+                                self.cache.setObject(resultImg, forKey: userFriend.avatarUrl as AnyObject)
+                                cell?.imgContact.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        
+        
+        return cell!
+    }
+    
+    
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard let selectedUser:User = self.dataList[indexPath.row] else {return}
+        
+        self.pleaseWait()
+        
+        self.fireBaseRef.child("Users").child((userCurrent?.id)!).observeSingleEvent(of: .value, with: { (snap) in
+            
+            guard let userDict = snap.value as? [String:AnyObject] else { return }
+            
+            if let user = User(uid: selectedUser.id, JsonData:userDict) {
+                self.dataList[indexPath.row] = user
+                
+                guard let conversationUser:[Conversations] = user.conversations.filter({$0.type == .Personal})
+                    else {
+                        self.createConversationWith(user: user)
+                        return
+                }
+                for i in 0..<conversationUser.count{
+                    var roomkey:String? = nil
+                    let conversation = conversationUser[i]
+                    self.fireBaseRef.child("Conversations").child(conversation.conversationkey).child("name").queryEqual(toValue: user.id).observeSingleEvent(of: .value, with: {(snap) in
+                        guard snap.exists()
+                            else{
+                                if i == conversationUser.count - 1{
+                                    self.createConversationWith(user: user)
+                                }
+                                return
+                        }
+                        roomkey = conversation.conversationkey
+                        self.pushToChatDetails(withRoomKey: roomkey!)
+                        
+                    })
+                }
+            }
+        })
+        tableView.deselectRow(at: indexPath, animated: false)
+        
+    }
+    
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            let userDel = dataList[indexPath.row]
+            //Xoá bạn ở listFriend user đang đăng nhập
+            fireBaseRef.child("Users").child((userCurrent?.id)!).child("listFriend").child(userDel.id).removeValue()
+            //Xoá bạn ở listFriend user bị xoá
+            fireBaseRef.child("Users").child(userDel.id).child("listFriend").child((userCurrent?.id)!).removeValue()
+            dataList.remove(at: indexPath.row)
+            tableView.deleteRows(at: [indexPath], with: UITableViewRowAnimation.automatic)
+        }
+    }
+    
+    
+    
+    
+    
+}

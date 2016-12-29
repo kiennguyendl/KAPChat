@@ -1,0 +1,52 @@
+//
+//  TimeLineUserViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/13/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+class TimeLineUserViewController: BaseAuthenticatedViewController {
+    
+    var uid: String!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        listenEventAcceptRequestFromFriend(uid)
+        // Do any additional setup after loading the view.
+    }
+    
+    @IBAction func btnAddFriend(_ sender: Any) {
+        print(uid)
+        sendRequestToUser(uid)
+    }
+    
+    func sendRequestToUser(_ userID: String) {
+        //        USER_REF.child(userID).child("requests").child(CURRENT_USER_ID).setValue(true)
+        self.fireBaseRef.child("Users").child(userID).child("RequestFriend").child(self.currentuserID).setValue(true)
+        listenEventAcceptRequestFromFriend(userID)
+    }
+    
+    func listenEventAcceptRequestFromFriend(_ userID: String) {
+        self.fireBaseRef.child("Users").child(userID).child("RequestFriend").child(self.currentuserID).observe(.childChanged, with: { (snap: FIRDataSnapshot) in
+            let statusRequest = snap.value as! Bool
+            if statusRequest == true{
+                
+            }else{
+                //push notification accept in here
+                self.fireBaseRef.child("Users").child(userID).child("RequestFriend").child(self.currentuserID).removeValue()
+                self.fireBaseRef.child("Users").child(userID).child("RequestFriend").child(self.currentuserID).removeAllObservers()
+                
+            }
+        })
+    }
+    
+    
+    
+    @IBAction func btnLoimoiketban(_ sender: Any) {
+        let vc = RequestOfFriendViewController()
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    
+}

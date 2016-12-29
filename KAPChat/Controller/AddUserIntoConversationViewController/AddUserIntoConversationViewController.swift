@@ -1,0 +1,357 @@
+//
+//  AddUserIntoConversationViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/22/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+protocol AddUserIntoConversationProtocol: class{
+    func addUserIntoConversation(keyRoom: String)
+}
+
+class AddUserIntoConversationViewController: BaseAuthenticatedViewController {
+
+    weak var delegate:AddUserIntoConversationProtocol?
+    @IBOutlet weak var navigationBar: UINavigationBar!
+    @IBOutlet weak var tableContact: UITableView!
+    var listContact = [User]()
+    var userCurrent:User!
+    var userSelected = [User]()
+    var userSearch = [User]()
+    var cache = NSCache<AnyObject,AnyObject>()
+    var searchBar:UISearchBar!
+    var viewHeader:UIView!
+    var collectionView:UICollectionView!
+    var conversationKey:String?
+    var nameOfConversation = [String:String]()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        self.startLoading()
+        
+        //table view
+        tableContact.delegate = self
+        tableContact.dataSource = self
+        tableContact.register(UINib(nibName: "CreateChatTableViewCell", bundle: nil), forCellReuseIdentifier: "cell_contact")
+        tableContact.rowHeight = UITableViewAutomaticDimension
+        tableContact.estimatedRowHeight = 100
+        self.viewHeader = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: 40))
+        self.searchBar = UISearchBar(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: 30))
+        self.searchBar.delegate = self
+        self.viewHeader.addSubview(searchBar)
+        tableContact.tableHeaderView?.backgroundColor = UIColor.white
+        tableContact.tableHeaderView = self.viewHeader
+        
+        //collection view
+        let collectionViewLayout = UICollectionViewFlowLayout()
+        collectionViewLayout.itemSize = CGSize(width: 50,height: 50)
+        collectionViewLayout.scrollDirection = .horizontal
+        
+        collectionView = UICollectionView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: 60), collectionViewLayout: collectionViewLayout)
+        collectionView.register(UINib(nibName: "UserCollectionViewCell", bundle: nil), forCellWithReuseIdentifier: "cell")
+        collectionView.delegate = self
+        collectionView.dataSource = self
+        collectionView.backgroundColor = UIColor.white
+        collectionView.showsHorizontalScrollIndicator = false
+        
+        
+        self.listContact = DatabaseManager.shareInstance.arrUserFriend
+        self.fireBaseRef.child("Conversations").child(conversationKey!).child("name").observe(.value, with: {(snap) in
+            guard let snapDict = snap.value as? [String:String] else {return}
+            self.nameOfConversation = snapDict
+            self.listContact = self.listContact.filter({
+                !self.nameOfConversation.keys.contains($0.id)
+            })
+            self.userCurrent = DatabaseManager.shareInstance.userLogging
+            self.userSearch = self.listContact
+            self.tableContact.reloadData()
+            self.stopLoading()
+        })
+        
+
+        // Do any additional setup after loading the view.
+    }
+    
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    
+    
+    @IBAction func cancelTouch(_ sender: Any) {
+        self.dismiss(animated: true, completion: nil)
+    }
+    
+    @IBAction func doneTouch(_ sender: Any) {
+        //Check xem phòng chat dang là bao nhiêu người >=3 là group, group thì chỉ thêm người vào
+        if self.nameOfConversation.keys.count >= 3 {
+            
+            let userConversationData = [
+                "isLoading": true,
+                "type": "group"
+                ] as [String : Any]
+            for user in userSelected{
+                self.fireBaseRef.child("Users").child(user.id).child("conversations").child(conversationKey!).setValue(userConversationData)
+                self.fireBaseRef.child("Conversations").child(conversationKey!).child("name").child(user.id).setValue(nameOfConversation.values.first)
+            }
+            self.dismiss(animated: true, completion: nil)
+            
+        //Ngược lại là cá nhân, thì tạo phòng chát mới vs type la group
+        }else if self.nameOfConversation.keys.count == 2{
+            var userSelectedId = [String]()
+            for user in self.userSelected {
+                userSelectedId.append(user.id)
+            }
+            
+            userSelectedId = userSelectedId + nameOfConversation.keys
+            
+            self.pleaseWait()
+            self.createConversationGroupWith(user: userSelectedId)
+
+            
+        }
+    }
+    
+   
+    
+    
+    
+    
+    func createConversationGroupWith(user: [String]) {
+        
+        
+        var nameRoom = ""
+        let alert = UIAlertController(title: "New",
+                                      message: "Add",
+                                      preferredStyle: .alert)
+        alert.title = "New Room"
+        alert.message = "Add Name Room"
+        let saveAction = UIAlertAction(title: "Save", style: .default, handler: {[weak self] (action) in
+            guard let strongself = self else {return}
+            guard let name = (alert.textFields?[0])?.text else {return}
+            //Name empty thì không làm gì hết, hiển thị thông báo lên
+            guard !name.isEmpty
+                else{
+                    self?.showAlert(title: "Thông báo", message: "Vui Lòng Nhập Tên Phòng.")
+                    return
+            }
+            nameRoom = name
+            //Tạo id phòng chat
+            let newRoomChatRef = strongself.fireBaseRef.child("Conversations").childByAutoId()
+            
+            var nameDict = [String:String]()
+            for i in 0..<user.count {
+                nameDict[user[i]] = nameRoom
+            }
+            //Thông tin phòng chat
+            let conversationData = [
+                "lastMessage"       : "",
+                "lastTimeUpdated"   : NSDate().timeIntervalSince1970,
+                "name"              : nameDict
+                ] as [String : Any]
+            //Tạo phòng chat tên firebase
+            newRoomChatRef.setValue(conversationData) { (err, ref) in
+                if err == nil {
+                    //Thành công thì thêm vào listConversation của user
+                    let userConversationData = [
+                        "isLoading": false,
+                        "type": "group"
+                        ] as [String : Any]
+                    for item in user{
+                        strongself.fireBaseRef.child("Users/\(item)/conversations/\(newRoomChatRef.key)").setValue(userConversationData)
+                    }
+                    
+                    strongself.dismiss(animated: true, completion: {
+                        strongself.delegate?.addUserIntoConversation(keyRoom: newRoomChatRef.key)
+                    })
+                }
+            }
+            
+        })
+        let cancelAction = UIAlertAction(title: "Cancel",
+                                         style: .default) { (action: UIAlertAction) -> Void in
+        }
+        alert.addTextField { (textField: UITextField) in
+            textField.placeholder = "name"
+        }
+        
+        alert.addAction(saveAction)
+        alert.addAction(cancelAction)
+        self.present(alert, animated: true, completion: nil)
+        self.stopLoading()
+        
+    }
+    /*
+     // MARK: - Navigation
+     
+     // In a storyboard-based application, you will often want to do a little preparation before navigation
+     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+     // Get the new view controller using segue.destinationViewController.
+     // Pass the selected object to the new view controller.
+     }
+     */
+    
+}
+extension AddUserIntoConversationViewController:UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return self.userSearch.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        var cell = tableView.dequeueReusableCell(withIdentifier: "cell_contact") as? CreateChatTableViewCell
+        if cell == nil {
+            cell = CreateChatTableViewCell()
+        }
+        let userFriend = self.userSearch[indexPath.row]
+        if self.userSelected.contains(userFriend) {
+            cell?.imgTick.image = UIImage(named: "checked")
+        }else{
+            cell?.imgTick.image = nil
+        }
+        cell?.lblDisplayName.text = userFriend.displayName
+        
+        let newSize = CGSize(width: 50, height: 50)
+        
+        //Kiểm tra hình này đã cache chưa nối có thì lấy ra xài
+        if let avtDownloaded = cache.object(forKey: userFriend.avatarUrl as AnyObject) as? UIImage {
+            cell?.imgAva.image = avtDownloaded
+        } else {
+            //Chứa cache thì lấy hình online và resize , Radius hình
+            cell?.imgAva.image = UIImage.imageWithColor(UIColor.lightGray, size: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+            
+            DispatchQueue.global().async {
+                if let url = URL(string: userFriend.avatarUrl) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+                                //Cache hình vào ram
+                                self.cache.setObject(resultImg, forKey: userFriend.avatarUrl as AnyObject)
+                                cell?.imgAva.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        
+        
+        return cell!
+        
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let user = self.userSearch[indexPath.row]
+        let cell = tableView.cellForRow(at: indexPath) as! CreateChatTableViewCell
+        
+        //Check xem user đã dc chọn chưa
+        if self.userSelected.contains(user) {
+            //nếu đã được chọn thì xoá chọn
+            cell.imgTick.image = nil
+            guard let index = self.userSelected.index(of: user) else {return}
+            self.userSelected.remove(at: index)
+            self.collectionView.deleteItems(at: [IndexPath(row: index, section: 0)])
+            
+            //Check xem còn user ko , ko thì xoá collection view
+            if userSelected.count == 0 {
+                
+                UIView.animate(withDuration: 0.33, animations: {
+                    self.collectionView.removeFromSuperview()
+                    self.viewHeader.frame = CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: 40)
+                    self.searchBar.frame =  CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: 30)
+                    self.tableContact.tableHeaderView = self.viewHeader
+                })
+                
+                
+            }
+        }else{
+            //Nếu chưa dc chọn thì chọn
+            cell.imgTick.image = UIImage(named: "checked")
+            self.userSelected.append(user)
+            guard let _ = self.userSelected.index(of: user) else {return}
+            //Check xem có phải lần đầu ko , lần đầu thì add collection view
+            if userSelected.count == 1 {
+                
+                UIView.animate(withDuration: 0.33, animations: {
+                    self.viewHeader.frame = CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: 100)
+                    self.searchBar.frame =  CGRect(x: 0, y: 60, width: UIScreen.main.bounds.size.width, height: 30)
+                    self.viewHeader.addSubview(self.collectionView)
+                    self.tableContact.tableHeaderView = self.viewHeader
+                })
+            }
+            collectionView.reloadData()
+        }
+        tableView.deselectRow(at: indexPath, animated: false)
+    }
+}
+
+extension AddUserIntoConversationViewController:UISearchBarDelegate{
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if !searchText.isEmpty {
+            self.userSearch = self.listContact.filter({ $0.displayName.lowercased().contains(searchText.lowercased()) })
+            self.tableContact.reloadData()
+        }else{
+            self.userSearch = self.listContact
+            self.tableContact.reloadData()
+        }
+    }
+}
+
+extension AddUserIntoConversationViewController:UICollectionViewDelegate,UICollectionViewDataSource,UICollectionViewDelegateFlowLayout{
+    func numberOfSections(in collectionView: UICollectionView) -> Int {
+        return 1
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        return self.userSelected.count
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        var cell = collectionView.dequeueReusableCell(withReuseIdentifier: "cell", for: indexPath) as? UserCollectionViewCell
+        if cell == nil {
+            cell = UserCollectionViewCell()
+        }
+        let user = self.userSelected[indexPath.row]
+        let newSize = CGSize(width: 50, height: 50)
+        
+        //Kiểm tra hình này đã cache chưa nối có thì lấy ra xài
+        if let avtDownloaded = cache.object(forKey: user.avatarUrl as AnyObject) as? UIImage {
+            cell?.imgCollectUser.image = avtDownloaded
+        } else {
+            //Chứa cache thì lấy hình online và resize , Radius hình
+            cell?.imgCollectUser.image = UIImage.imageWithColor(UIColor.lightGray, size: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+            
+            DispatchQueue.global().async {
+                if let url = URL(string: user.avatarUrl) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+                                //Cache hình vào ram
+                                self.cache.setObject(resultImg, forKey: user.avatarUrl as AnyObject)
+                                cell?.imgCollectUser.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return cell!
+        
+    }
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets {
+        return UIEdgeInsets(top: 5, left: 5, bottom: 5, right: 5)
+    }
+    
+}

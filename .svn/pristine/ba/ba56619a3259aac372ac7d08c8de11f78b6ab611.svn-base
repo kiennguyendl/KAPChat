@@ -1,0 +1,29 @@
+//
+//  ReceiveImageTableViewCell.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class ReceiveImageTableViewCell: UITableViewCell {
+
+    @IBOutlet weak var imgReceiver: UIImageView!
+    @IBOutlet weak var imgReceive: UIImageView!
+    @IBOutlet weak var viewReceive: UIView!
+    @IBOutlet weak var imgReceiveWidthConstraint: NSLayoutConstraint!
+    @IBOutlet weak var imgReceiveHeightConstraint: NSLayoutConstraint!
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        // Initialization code
+    }
+
+    override func setSelected(_ selected: Bool, animated: Bool) {
+        super.setSelected(selected, animated: animated)
+
+        // Configure the view for the selected state
+    }
+    
+}

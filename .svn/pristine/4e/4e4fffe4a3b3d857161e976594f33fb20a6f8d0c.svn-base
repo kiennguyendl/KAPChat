@@ -1,0 +1,245 @@
+//
+//  ContactViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+import UserNotifications
+
+class ContactViewController: BaseAuthenticatedViewController {
+    
+    @IBOutlet weak var tableContact: UITableView!
+    var cache = NSCache<AnyObject,AnyObject>()
+    var dataList:[User] = [User]()
+    var userCurrent:User?
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        self.title = "CONTACT"
+        
+        //set up table view
+        tableContact.delegate = self
+        tableContact.dataSource = self
+        tableContact.rowHeight = UITableViewAutomaticDimension
+        tableContact.estimatedRowHeight = 100
+        tableContact.register(UINib(nibName: "ContactTableViewCell", bundle: nil), forCellReuseIdentifier: "cell")
+        
+        //self.startLoading()
+        getData()
+        
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        //self.startLoading()
+    }
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    func showScreenAddFriend() {
+        let vc = AddFriendViewController()
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    //Lấy data của mình và của bạn bè
+    func getData() {
+        
+        self.startLoading()
+        self.dataList = DatabaseManager.shareInstance.arrUserFriend
+        self.userCurrent = DatabaseManager.shareInstance.userLogging
+        self.tableContact.reloadData()
+        NotificationCenter.default.addObserver(self, selector: #selector(updateUserLogging(noti:)), name: NSNotification.Name(rawValue: "UpdateUserLogging"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(userChangeInfo(noti:)), name: NSNotification.Name(rawValue: "UserChangeInfo"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(userFriendAdd(noti:)), name: NSNotification.Name(rawValue: "UserFriendAdd"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(userFriendDel(noti:)), name: NSNotification.Name(rawValue: "UserFriendDel"), object: nil)
+        self.stopLoading()
+        
+    }
+    
+    func updateUserLogging(noti: Notification){
+        self.userCurrent = DatabaseManager.shareInstance.userLogging
+    }
+    
+    func userChangeInfo(noti: Notification){
+        guard let index = noti.userInfo?["index"] as? Int else {return}
+        self.dataList[index] = DatabaseManager.shareInstance.arrUserFriend[index]
+        self.tableContact.reloadRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
+    }
+    
+    func userFriendAdd(noti: Notification){
+        guard let index = noti.userInfo?["index"] as? Int else {return}
+        self.dataList.append(DatabaseManager.shareInstance.arrUserFriend[index])
+        self.tableContact.insertRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
+    }
+    
+    func userFriendDel(noti: Notification){
+        guard let index = noti.userInfo?["index"] as? Int else {return}
+        self.dataList.remove(at: index)
+        self.tableContact.deleteRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    func pushToChatDetails(withRoomKey:String) {
+        self.clearAllNotice()
+        
+        let chatVC = ChatViewController()
+        chatVC.conversationKey = withRoomKey
+        self.navigationController?.pushViewController(chatVC, animated: true)
+    }
+    
+    func createConversationWith(user: User) {
+        
+        
+        guard let userCur = userCurrent else { return }
+        
+        let newRoomChatRef = self.fireBaseRef.child("Conversations").childByAutoId()
+        
+        let conversationData = [
+            "lastMessage"       : "",
+            "lastTimeUpdated"   : NSDate().timeIntervalSince1970,
+            "name"              : [
+                userCur.id : user.displayName,
+                user.id    : userCur.displayName
+            ]
+            ] as [String : Any]
+        
+        newRoomChatRef.setValue(conversationData) { (err, ref) in
+            if err == nil {
+                let userConversationData = [
+                    "isLoading": false,
+                    "type": "personal"
+                    ] as [String : Any]
+                self.fireBaseRef.child("Users/\(user.id)/conversations/\(newRoomChatRef.key)").setValue(userConversationData)
+                self.fireBaseRef.child("Users/\(userCur.id)/conversations/\(newRoomChatRef.key)").setValue(userConversationData)
+                
+                self.pushToChatDetails(withRoomKey: newRoomChatRef.key)
+            }
+        }
+    }
+    
+    
+    
+    
+}
+
+extension ContactViewController: UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return dataList.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        var cell = tableView.dequeueReusableCell(withIdentifier: "cell") as? ContactTableViewCell
+        if cell == nil {
+            cell = ContactTableViewCell()
+        }
+        let userFriend = dataList[indexPath.row]
+        cell?.lblNameContact.text = userFriend.displayName
+        cell?.lblFeeling.text = userFriend.status
+        cell?.viewStatus.backgroundColor = userFriend.isOnline == true ? UIColor.green : UIColor.gray
+        let newSize = CGSize(width: 44, height: 44)
+        
+        //Kiểm tra hình này đã cache chưa nối có thì lấy ra xài
+        if let avtDownloaded = cache.object(forKey: userFriend.avatarUrl as AnyObject) as? UIImage {
+            cell?.imgContact.image = avtDownloaded
+        } else {
+            //Chứa cache thì lấy hình online và resize , Radius hình
+            cell?.imgContact.image = UIImage.imageWithColor(UIColor.lightGray, size: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+            
+            DispatchQueue.global().async {
+                if let url = URL(string: userFriend.avatarUrl) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+                                //Cache hình vào ram
+                                self.cache.setObject(resultImg, forKey: userFriend.avatarUrl as AnyObject)
+                                cell?.imgContact.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        
+        
+        return cell!
+    }
+    
+    
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard let selectedUser:User = self.dataList[indexPath.row] else {return}
+        
+        self.pleaseWait()
+        
+        self.fireBaseRef.child("Users").child((userCurrent?.id)!).observeSingleEvent(of: .value, with: { (snap) in
+            
+            guard let userDict = snap.value as? [String:AnyObject] else { return }
+            
+            if let user = User(uid: snap.key, JsonData:userDict) {
+                
+                
+                let conversationUser = user.conversations.filter({$0.type == .Personal})
+                guard conversationUser.count > 0
+                    else {
+                        self.createConversationWith(user: selectedUser)
+                        return
+                }
+                var roomkey:String? = nil
+                var isHave = false
+                for i in 0..<conversationUser.count{
+                    //if i == conversationUser.count - 1 { isLast = true}
+                    let conversation = conversationUser[i]
+                    self.fireBaseRef.child("Conversations").child(conversation.conversationkey).child("name").child(selectedUser.id).observeSingleEvent(of: .value, with: {(snap) in
+                        guard !(snap.value is NSNull)
+                            else{
+                                if isHave == false && i == conversationUser.count - 1{
+                                    self.createConversationWith(user: selectedUser)
+                                }
+                                return
+                        }
+                        roomkey = conversation.conversationkey
+                        isHave = true
+                        self.pushToChatDetails(withRoomKey: roomkey!)
+                        
+                    })
+                }
+            }
+        })
+        tableView.deselectRow(at: indexPath, animated: false)
+        
+    }
+    
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            let userDel = dataList[indexPath.row]
+            //Xoá bạn ở listFriend user đang đăng nhập
+            fireBaseRef.child("Users").child((userCurrent?.id)!).child("listFriend").child(userDel.id).removeValue()
+            //Xoá bạn ở listFriend user bị xoá
+            fireBaseRef.child("Users").child(userDel.id).child("listFriend").child((userCurrent?.id)!).removeValue()
+            dataList.remove(at: indexPath.row)
+            tableView.deleteRows(at: [indexPath], with: UITableViewRowAnimation.automatic)
+        }
+    }
+    
+    
+    
+    
+    
+}

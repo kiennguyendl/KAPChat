@@ -1,0 +1,508 @@
+//
+//  ChatViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class ChatViewController: BaseAuthenticatedViewController {
+
+    var conversationKey:String?
+    
+    var messages:Array<Message> = []
+    
+    var isFirstLoad = true
+    
+    // Cache downloaded image
+    var cacheImages = NSCache<AnyObject, AnyObject>()
+    
+    // OperationQueue để kiểm soát các thread download ảnh
+    lazy var downloadPhotoQueue:OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "Download Photo"
+        queue.maxConcurrentOperationCount = 2
+        return queue
+    }()
+    
+    // Track các task download
+    var downloadingTasks    = Dictionary<String,Operation>()
+    
+    // Dictionary lưu các url avatar users
+    var userAvtDict         = Dictionary<String,String>()
+    
+    //Firebase Storage Image
+    var imgSelected: String?
+    var imgDataSelected:NSData?
+    
+    var imgPickerVC: UIImagePickerController?
+    
+    var flagCameraTakeOrSelectPhoto = 0
+    
+    // Limit query last messages
+    let numberOfLastMessages: UInt = 25
+    // Last item ID to paging
+    var lastMessageKey:String?
+    
+    // Các biến kiểm soát load data
+    var isLoadingData                   = false
+    var hasNextData                     = true
+    
+    // Keyboard is presenting or not
+    var keyboardPresenting              = false
+    
+    // Data source from Firebase
+    var messagesRef:FIRDatabaseReference!
+    
+    // Avatar placeholder image
+    let avtPlaceHolderImg:UIImage = UIImage.imageWithColor(UIColor.lightGray, size: CGSize(width: 30, height: 30)).createRadius(newSize: CGSize(width: 30, height: 30), radius: 15, byRoundingCorners: .allCorners)
+    
+    // Refesh controler for chat table
+    let refeshControl = UIRefreshControl()
+    
+    
+    @IBOutlet weak var tableMess: UITableView!
+    @IBOutlet weak var txtInputChat: UITextView!
+    
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        messagesRef = self.fireBaseRef.child("Conversations/\(conversationKey!)/mesages")
+        setUpView()
+        NotificationCenter.default.addObserver(self, selector: #selector(keyBoardWillChangeFrame(notification:)), name: NSNotification.Name.UIKeyboardWillChangeFrame, object: nil)
+        // Do any additional setup after loading the view.
+    }
+    
+    func keyBoardWillChangeFrame(notification: NSNotification){
+        let keyBoardRect: CGRect = ((notification.userInfo?[UIKeyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue)!
+        let keyBoardAnimationDuration = notification.userInfo?[UIKeyboardAnimationDurationUserInfoKey] as! CGFloat
+        
+        UIView.animate(withDuration: TimeInterval(keyBoardAnimationDuration), animations: {
+            self.view.frame.origin.y = -(self.view.frame.size.height - keyBoardRect.origin.y)
+            
+        }, completion: nil)
+        
+        
+        
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        if let tabbar = self.tabBarController?.tabBar {
+            let tabbarHeight = tabbar.bounds.size.height
+            tableMess.contentInset.bottom = tabbarHeight + 40
+            tableMess.scrollIndicatorInsets = tableMess.contentInset
+        }
+        
+        if isFirstLoad {
+            isFirstLoad = false
+            
+            // 2.
+            fetchConversationName()
+
+            loadData(lastKey: nil)
+            listenUserDidJoinConversationFromFirebase()
+            listenMessageDidAddFromFirebase()
+            listenMessageDidRemoveFromFirebase()
+        }
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    
+    func setUpView() {
+        
+        txtInputChat.layer.borderWidth = 1
+        txtInputChat.layer.borderColor = UIColor(red: 206/255 ,green: 206/255, blue: 206/255 ,  alpha: 1 ).cgColor
+        txtInputChat.layer.cornerRadius = 5
+        
+        tableMess.dataSource = self
+        tableMess.delegate = self
+        tableMess.register(UINib(nibName: "SenderTextTableViewCell", bundle: nil), forCellReuseIdentifier: "cellSender")
+        tableMess.register(UINib(nibName: "SenderImageTableViewCell", bundle: nil), forCellReuseIdentifier: "cellSenderPhoto")
+        tableMess.register(UINib(nibName: "ReceiveTextTableViewCell", bundle: nil), forCellReuseIdentifier: "cellReceiver")
+        tableMess.register(UINib(nibName: "ReceiveImageTableViewCell", bundle: nil), forCellReuseIdentifier: "cellReceiverPhoto")
+        
+        tableMess.estimatedRowHeight = 100
+        tableMess.rowHeight = UITableViewAutomaticDimension
+        
+        //self.sendMessageButtonOutlet.isEnabled = false
+        
+        self.tableMess.addSubview(refeshControl)
+    }
+    
+    
+    // MARK: Data from Firebase
+    // 2.
+    func fetchConversationName() {
+        
+        // Đang load title cho phòng chat
+        self.navigationController?.title = "..."
+        
+        self.fireBaseRef.child("Conversations/\(conversationKey!)/name").observeSingleEvent(of: .value, with: { (snap) in
+            
+            // Trường hợp phòng chat riêng thì lấy theo uID logged in
+            if let privateNameDict = snap.value as? [String:String] {
+                
+                if let privateName = privateNameDict[self.currentuserID] {
+                    self.navigationController?.title = privateName
+                }
+                
+            }
+            
+        })
+    }
+    
+    /// Lắng nghe message mới từ Firebase
+    func listenMessageDidAddFromFirebase() {
+        messagesRef.queryLimited(toLast: 1).observe(.childAdded, with: { (snap) in
+            
+            // Check message nếu đã tồn tại thì bỏ qua
+            for msg in self.messages {
+                if msg.messageId == snap.key {
+                    return
+                }
+            }
+            
+            guard let messageInfo = snap.value as? [String:AnyObject] else { return }
+            
+            // Parse message và thêm vào mảng data chat
+            if let message = Message(mesID: snap.key, messagesInfo: messageInfo) {
+                self.messages.append(message)
+                
+                
+                let indexPath = IndexPath(row: self.messages.count - 1, section: 0)
+                self.tableMess.insertRows(at: [indexPath], with: .bottom)
+                self.scrollTableViewToEnd()
+            }
+        })
+    }
+    
+    /// Lắng nghe message bị xóa từ Firebase
+    func listenMessageDidRemoveFromFirebase() {
+        messagesRef.observe(.childRemoved, with: { (snap) in
+            
+            if self.messages.count == 0 { return }
+            
+            let messageDeletedKey = snap.key
+            
+            // Tìm index của message cần xóa
+            for i in 0 ..< self.messages.count {
+                if let msg:Message = self.messages[i] {
+                    if messageDeletedKey == msg.messageId {
+                        
+                        // Xóa message và update lại table view
+                        self.messages.remove(at: i)
+                        let indexPath = IndexPath(row: i, section: 0)
+                        self.tableMess.deleteRows(at: [indexPath], with: .automatic)
+                        
+                        // Break để không phải tìm tiếp
+                        break
+                    }
+                }
+            }
+        })
+    }
+    
+    /// Lắng nghe khi có user join vào phòng chat từ Firebase
+    /// Hàm này tận dụng lấy avatarURL của user lưu lại
+    
+    func listenUserDidJoinConversationFromFirebase() {
+        self.fireBaseRef.child("Conversations").child(conversationKey!).child("people").observe(.childAdded, with: { (snap) in
+            
+            guard let userID = snap.value as? String else { return }
+            
+            self.fireBaseRef.child("Users").child(userID).observeSingleEvent(of: .value, with: { (userSnap) in
+                
+                guard let userDict = userSnap.value as? [String:AnyObject] else { return }
+                
+                if let avatarURL = userDict["avatarUrl"] as? String {
+                    self.userAvtDict[userSnap.key] = avatarURL
+                }
+            })
+            
+        })
+    }
+    
+    /// Load tin chat từ Firebase
+    /// - parameter lastKey: Nếu = nil là load lần đầu, ngược lại là load phân trang
+    // 3.
+    func loadData(lastKey:String?) {
+        
+        // Nếu đang load data hoặc không có dữ liệu tiếp theo thì không làm gì cả
+        if isLoadingData || !hasNextData { return }
+        
+        isLoadingData = true // bật trạng thái load data
+        
+        var dbRef:FIRDatabaseQuery!
+        
+        if let lastMessageKey = lastKey {
+            dbRef = messagesRef.queryOrderedByKey().queryEnding(atValue: lastMessageKey).queryLimited(toLast: numberOfLastMessages + 1)
+        } else {
+            dbRef = messagesRef.queryOrderedByKey().queryLimited(toLast: numberOfLastMessages)
+        }
+        
+        dbRef.observeSingleEvent(of: .value, with: { (snap) in
+            
+            if let newItems = self.parseData(snapData: snap) {
+                
+                self.refeshControl.endRefreshing()
+                
+                self.hasNextData = UInt(newItems.count) == self.numberOfLastMessages
+                
+                // Nếu load lần đầu thì gán cả mảng data mới vào mảng data của table chat
+                if self.lastMessageKey == nil {
+                    self.messages = newItems
+                    self.tableMess.reloadData()
+                    //self.scrollTableViewToEnd()
+                }
+                    // Khi có phân trang thì mảng data mới sẽ được thêm vào ngay trước mảng data của table chat
+                else {
+                    self.messages = newItems + self.messages
+                    self.tableMess.reloadData()
+                    
+                }
+                
+                // Cập nhật message key cho lần phân trang tiếp theo
+                self.lastMessageKey = self.getLastMessageKey()
+            } else {
+                
+                self.hasNextData = false
+            }
+            
+            // tắt trạng thái load data
+            self.stopLoading()
+            self.isLoadingData = false
+        })
+    }
+    
+    /// Lấy message key cũ nhất để làm cột mốc cho lần phân trang tiếp theo
+    private func getLastMessageKey() -> String? {
+        
+        guard let firstMessage = self.messages.first else { return nil }
+        
+        return firstMessage.messageId
+    }
+    
+    /// Parse Data: Chuyển hóa JSON data từ Firebase -> model trong app
+    func parseData(snapData: FIRDataSnapshot) -> Array<Message>? {
+        
+        if snapData.children.allObjects.count == 0 { return nil }
+        
+        var result = [Message]()
+        
+        for messageObj in snapData.children.allObjects {
+            
+            guard let messageSnap = messageObj as? FIRDataSnapshot else { continue }
+            guard let messageInfo = messageSnap.value as? [String:AnyObject] else { continue }
+            
+            // Phân trang trong Firebase sẽ luôn có 1 item dư từ data cũ, vì ta phải query bắt đầu từ item này, nên mình cần bỏ qua nó lúc parse data
+            if self.lastMessageKey == messageSnap.key { continue }
+            
+            if let message = Message(mesID: messageSnap.key, messagesInfo: messageInfo) {
+                result.append(message)
+            }
+        }
+        
+        return result
+    }
+    
+    func scrollTableViewToEnd() {
+        let rowIndex = self.messages.count > 0 ? self.messages.count - 1 : 0
+        let lastIndexPath = IndexPath(row: rowIndex, section: 0)
+        
+        self.tableMess.scrollToRow(at: lastIndexPath, at: .bottom , animated: false)
+    }
+
+    
+    @IBAction func touchAttachment(_ sender: Any) {
+        
+    }
+
+    @IBAction func touchSend(_ sender: Any) {
+        let content = txtInputChat.text!
+        
+        self.sendMessageToFirebase(type: .Text, content: content, width: 0, height: 0, imgName: "")
+        
+        self.txtInputChat.text = ""
+        //self.heightOfMessageView.constant = 30
+    }
+    
+    /// Send message to Firebase
+    func sendMessageToFirebase(type: MessageType, content: String, width: Int, height: Int, imgName: String) {
+        
+        let timeStamp       = NSDate().timeIntervalSince1970
+        
+        let newMsgRef = self.messagesRef.childByAutoId()
+        let messInfo = [
+            "content" : content as AnyObject,
+            "type": (type == .Photo) ? "photo" as AnyObject : "text" as AnyObject,
+            "time" : timeStamp as AnyObject,
+            "user_id" : self.currentuserID as AnyObject,
+            "imgWidth": width as AnyObject,
+            "imgHeight": height as AnyObject,
+            "imgName": imgName as AnyObject
+        ] as [String : AnyObject]
+        
+        newMsgRef.setValue(messInfo)
+        
+        // Update conversation
+        let lastMsg = (type == .Text) ? content : "Photo message"
+        self.fireBaseRef.child("Conversations/\(conversationKey!)/lastMessage").setValue(lastMsg)
+        self.fireBaseRef.child("Conversations/\(conversationKey!)/lastTimeUpdated").setValue(timeStamp)
+        
+    }
+
+
+}
+
+extension ChatViewController:UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return messages.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        // Lấy message ở row index
+        let message = messages[indexPath.row]
+        
+        // Xác định cell id là của cell cho sender hay reciever
+        var cellId = (message.sender == currentuserID) ? "cellSender" : "cellReceiver"
+        
+        // Nếu message là hình thì cell id thêm Photo
+        if message.type == .Photo  {
+            cellId += "Photo"
+        }
+        
+        
+        if cellId == "cellSender" {
+            let cell = tableView.dequeueReusableCell(withIdentifier: cellId, for: indexPath) as! SenderTextTableViewCell
+            cell.viewBubble.backgroundColor = UIColor(red: 204/255, green: 204/255, blue: 204/255 , alpha: 1)
+            cell.lblText.text       = message.content
+            cell.lblText.textColor  = UIColor.white
+            return cell
+        }else{
+            let cell = tableView.dequeueReusableCell(withIdentifier: cellId, for: indexPath) as! ReceiveTextTableViewCell
+            cell.viewBubble.backgroundColor = UIColor(red: 242/255, green: 120/255, blue: 5/255 , alpha: 1)
+            cell.lblText.text       = message.content
+            cell.lblText.textColor  = UIColor.white
+            return cell
+
+        }
+        
+//        cell.message = message
+//        cell.delegate = self
+        
+        
+
+        
+        // Hiển thị avatar
+//        cell.avtImageView.image = avtPlaceHolderImg
+//        
+//        // Lấy url user từ userAvtDict đã cache sẵn
+//        if let avtURL = self.userAvtDict[message.sender] {
+//            
+//            // Nếu avt đã được download vào cache, lấy hình ra xài luôn
+//            if let avtDownloaded = cacheImages.object(forKey: avtURL) as? UIImage {
+//                cell.avtImageView.image = avtDownloaded
+//            } else {
+//                
+//                let photoDownloader = MessageDownloadPhotoOperation(key: message.messageId, photoURL: avtURL, photoPosition: .avatar, delegate: self)
+//                self.startDownloadPhoto(downloader: photoDownloader)
+//            }
+//        }
+        
+        // Nếu message là hình ảnh
+//        if message.type == .Photo {
+//
+//            let photoChatCell = cell as! PhotoChatCell
+//            
+//            photoChatCell.delegatePhotoChatCell = self
+//            
+//            let urlImage = message.content
+//            
+//            // Scale size
+//            let newh = CGFloat(200 * message.imgHeight / message.imgWidth)
+//            
+//            photoChatCell.photoHeightConstraint.constant    = newh
+//            photoChatCell.photoWidthConstraint.constant     = 200
+//            
+//            // Check photo đã được download và đưa vào cache chưa,
+//            // nếu đã có thể lấy ra gán vào image view
+//            photoChatCell.messgePhotoImgView.image = nil
+//            
+//            if let downloadedPhoto = cacheImages.object(forKey: urlImage) as? UIImage {
+//                
+//                photoChatCell.messgePhotoImgView.image = downloadedPhoto
+//                
+//            } else {
+//                // Ngược lại nếu table view đang đứng yên (không scroll) thì bắt đầu download hình
+//                //imageViewSendFromCurrentUser.image = #imageLiteral(resourceName: "default_msg")
+//                
+//                if !tableView.isDecelerating {
+//                    
+//                    let photoDownloader = MessageDownloadPhotoOperation(key: message.messageId, photoURL: urlImage, photoPosition: .message, delegate: self)
+//                    self.startDownloadPhoto(downloader: photoDownloader)
+//                }
+//            }
+//            
+//        }
+            // Nếu message là text bình thường
+//        else {
+//            let textChatCell = cell as! TextChatCell
+//            textChatCell.contentMessageLabel.text       = message.content
+//            textChatCell.contentMessageLabel.textColor  = UIColor.white
+//            
+//        }
+        
+        
+    }
+    
+}
+
+extension ChatViewController : UIScrollViewDelegate {
+    
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        
+        // Chỉ làm việc với chat table, scrollview lúc này sẽ có khả năng là text view
+        guard let chatTable = scrollView as? UITableView else { return }
+        
+        // Nếu chat table đang scroll, cancel tất cả các threads download ảnh
+        if chatTable.isDecelerating {
+            //downloadPhotoQueue.cancelAllOperations()
+            //downloadingTasks.removeAll()
+        }
+    }
+    
+    /// Khi table view dừng scroll reload lại các visible cells để load các hình cần thiết
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        
+        // Chỉ làm việc với chat table, scrollview lúc này sẽ có khả năng là text view
+        guard let chatTable = scrollView as? UITableView else { return }
+        
+        // Check nếu refeshControl đang chạy thì load data phân trang tiếp theo
+        if refeshControl.isRefreshing {
+            
+            if hasNextData {
+                loadData(lastKey: lastMessageKey)
+            } else {
+                refeshControl.endRefreshing()
+            }
+        }
+        
+        // Reload table để download các hình ảnh chưa có
+//        if !keyboardPresenting {
+//            chatTable.reloadData()
+//        }
+    }
+    
+}

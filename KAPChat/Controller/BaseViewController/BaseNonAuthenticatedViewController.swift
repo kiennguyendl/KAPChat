@@ -1,0 +1,113 @@
+//
+//  BaseNonAuthenticatedViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class BaseNonAuthenticatedViewController: BaseViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        createNotificationCenter()
+        hideKeyboardTap = UITapGestureRecognizer(target: self, action: #selector(tapScreen))
+    }
+    
+    func createNotificationCenter() {
+        NotificationCenter.default.addObserver(self, selector: #selector(willShowKeyBoard(notification:) ), name:NSNotification.Name.UIKeyboardWillShow, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(willHideKeyBoard(notification:)), name:NSNotification.Name.UIKeyboardWillHide, object: nil)
+        
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(LoginViewController.tapScreen), name: NSNotification.Name.init("closeKeyboard"), object: nil)
+    }
+    
+    func tapScreen() {
+        if !keyboardHidden {
+            self.view.endEditing(true)
+        }
+    }
+    
+    // MARK: Show Keyboard
+    func willShowKeyBoard(notification : NSNotification){
+        keyboardHidden = false
+        let userInfo: NSDictionary! = notification.userInfo as NSDictionary!
+        
+        var duration : TimeInterval = 0
+        
+        duration = userInfo[UIKeyboardAnimationDurationUserInfoKey] as! TimeInterval
+        let keyboardFrame = (userInfo.object(forKey: UIKeyboardFrameEndUserInfoKey) as! NSValue).cgRectValue
+        
+        handleKeyboardWillShow(duration: duration,keyBoardRect: keyboardFrame, userInfo: userInfo)
+    }
+    
+    // MARK: Hide Keyboard
+    func willHideKeyBoard(notification : NSNotification){
+        keyboardHidden = true
+        var userInfo: NSDictionary!
+        userInfo = notification.userInfo as NSDictionary!
+        
+        var duration : TimeInterval = 0
+        duration = userInfo[UIKeyboardAnimationDurationUserInfoKey] as! TimeInterval
+        
+        let keyboardFrame = (userInfo.object(forKey: UIKeyboardFrameEndUserInfoKey) as! NSValue).cgRectValue
+        
+        handleKeyboardWillHide(duration: duration, keyBoardRect: keyboardFrame, userInfo: userInfo)
+    }
+    
+    // MARK: Action of Show Keyboard
+    func handleKeyboardWillShow(duration: TimeInterval, keyBoardRect: CGRect, userInfo: NSDictionary) {
+        self.view.addGestureRecognizer(hideKeyboardTap)
+        // Find which textField is focused
+        for focusingView in self.view.subviews {
+            if focusingView.isFirstResponder {
+                
+                let y = focusingView.frame.origin.y
+                let offset = y - (view.bounds.height - (keyBoardRect.size.height + 100))
+                
+                if offset > 0 {
+                    UIView.animate(withDuration: duration, delay: 0, options:[], animations: { [weak self] in
+                        guard let strongSelf = self else { return }
+                        
+                        strongSelf.view.frame.origin.y = 0 - offset
+                        }, completion: nil)
+                }
+                
+                break
+            }
+        }
+        
+    }
+    
+    // MARK: Action of Hide Keyboard
+    func handleKeyboardWillHide(duration: TimeInterval, keyBoardRect: CGRect, userInfo: NSDictionary) {
+        
+        self.view.removeGestureRecognizer (hideKeyboardTap)
+        UIView.animate(withDuration: duration, delay: 0, options:[], animations: { [weak self] in
+            
+            guard let strongSelf = self else { return }
+            strongSelf.view.frame.origin.y = 0
+            
+            
+            }, completion: nil)
+    }
+    
+    
+
+    // Remove Observer
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    //add user to data firebase
+    func addUserInfo(user: FIRUser, userInfo: [String:AnyObject]) {
+        
+        self.fireBaseRef.child("Users").child(user.uid).setValue(userInfo, withCompletionBlock: { (error, data) in
+            if error != nil {
+                print(error!)
+            }
+        })
+    }
+}

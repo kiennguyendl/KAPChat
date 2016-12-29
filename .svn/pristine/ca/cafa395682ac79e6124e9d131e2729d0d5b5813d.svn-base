@@ -1,0 +1,358 @@
+//
+//  ConversationsViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class ConversationsViewController: BaseAuthenticatedViewController {
+    
+    var listChat = [RecentChat]()
+    var listChatDontDisplay = [RecentChat]()
+    // Cache downloaded image
+    var cacheImages = NSCache<AnyObject, AnyObject>()
+    //current user
+    var userCurrent:User?
+    //Check first load
+    var isFirstLoad = true
+    
+    @IBOutlet weak var tableConversations: UITableView!
+
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        tableConversations.delegate = self
+        tableConversations.dataSource = self
+        tableConversations.rowHeight = UITableViewAutomaticDimension
+        tableConversations.estimatedRowHeight = 100
+        tableConversations.register(UINib(nibName: "ConversationsTableViewCell", bundle: nil), forCellReuseIdentifier: "cell")
+        // Do any additional setup after loading the view.
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        if isFirstLoad {
+            isFirstLoad = false
+            getData()
+        }
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    
+    func getData(){
+        //self.pleaseWait()
+        
+        let usersRef            = self.fireBaseRef.child("Users")
+        //let conversationsRef    = self.fireBaseRef.child("Conversations")
+        
+        // Load conversations of logged user
+        let currentUserId = self.currentuserID
+        usersRef.child(currentUserId).observeSingleEvent(of: .value, with: {(snap) in
+            
+            guard let userDict = snap.value as? [String:AnyObject] else {return}
+            
+            if let user = User(uid: snap.key, JsonData: userDict) {
+                self.userCurrent = user
+                self.listenConversationAddedFromFirebase()
+                self.listenConversationRemovedFromFirebase()
+                self.listUserConversationsChange()
+//                guard self.userCurrent?.conversations != nil else {
+//                    //Nếu user ko có conversation
+//                    return}
+//                for item in (self.userCurrent?.conversations)! {
+//                    
+//                    
+//                    // Khởi tạo data cho mỗi conversations
+//                    let recentChat = RecentChat()
+//                    //Gắn id cho recentChat.keyID
+//                    recentChat.keyID = item.key
+//                    var value1:String?
+//                    //Lấy id user đầu tiên
+//                    for value in item.value{
+//                        guard Bool(value.value) == true
+//                        else {
+//                            //Thêm lắng nghe
+//                            let recentChatDontDisplay = RecentChat()
+//                            recentChatDontDisplay.keyID = item.key
+//                            recentChatDontDisplay.receiverUserID = value.key
+//                            self.listenConversationUpdatedFromFirebase(data: [recentChatDontDisplay])
+//                            return
+//                        }
+//                        value1 = value.key
+//                    }
+//                    
+//                    // Lấy avatar url và user name bằng cách truy vấn vào id của user nhận chat
+//                    usersRef.child(value1!).observeSingleEvent(of: .value, with: { (userSnap) in
+//                        
+//                        if let userDict = userSnap.value as? [String:AnyObject] {
+//                            recentChat.avatarURL = userDict["avatarUrl"] as! String
+//                            recentChat.userDisplayName = userDict["displayName"] as! String
+//                            
+//                            recentChat.receiverUserID = userSnap.key
+//                            let conversationKey = item.key
+//                            
+//                            //Lấy thông tin last message
+//                            conversationsRef.child(conversationKey).child("lastMessage").observeSingleEvent(of: .value, with: { (conversationSnap) in
+//                                guard !(conversationSnap.value is NSNull) else {return}
+//                                recentChat.lastestMess = conversationSnap.value as! String
+//                                
+//                                //Lấy thông tin thời gian của tin nhắn gần nhất
+//                                conversationsRef.child(conversationKey).child("lastTimeUpdated").observeSingleEvent(of: .value, with: { (timeSnap) in
+//                                    guard !(timeSnap.value is NSNull) else {return}
+//                                    recentChat.lastUpdatedTime = timeSnap.value as! Float
+//                                    self.listChat.append(recentChat)
+//                                    self.listenConversationUpdatedFromFirebase(data: [recentChat])
+//                                    self.updateUI()
+//                                    //Lắng nghe đặt đây
+//
+//                                })
+//                            })
+//                        }
+//                    })
+//                }
+//                
+            }
+            
+
+            
+        })
+
+    }
+    
+//    deinit {
+//        self.fireBaseRef.removeAllObservers()
+//    }
+    
+    func updateUI() {
+        self.listChat = self.listChat.sorted {
+            $0.lastUpdatedTime > $1.lastUpdatedTime
+        }
+        
+        self.tableConversations.reloadData()
+        self.clearAllNotice()
+    }
+    
+    func listUserConversationsChange(){
+        self.fireBaseRef.child("Users").child((userCurrent?.id)!).child("conversations").observe(.childChanged, with: {(snap) in
+            guard let snapDict = snap.value as? [String:Bool] else {return}
+            for recentChat in self.listChat {
+                if recentChat.keyID == snap.key { return }
+            }
+            var idUserReceiver:String?
+            for item in snapDict{
+                guard item.value == true else {return}
+                idUserReceiver = item.key
+            }
+            self.fireBaseRef.child("Conversations").child(snap.key).observeSingleEvent(of: .value, with: {(snapData) in
+                guard let snapCon = snapData.value as? [String:AnyObject] else { return }
+                let newRecentChat = RecentChat()
+                newRecentChat.keyID = snap.key
+                newRecentChat.lastestMess = snapCon["lastMessage"]! as! String
+                newRecentChat.lastUpdatedTime = snapCon["lastTimeUpdated"] as! Float
+                newRecentChat.receiverUserID = idUserReceiver!
+                
+                self.fireBaseRef.child("Users").child(idUserReceiver!).observeSingleEvent(of: .value, with: { (snapUser) in
+                    guard let snapUserDict = snapUser.value as? [String:AnyObject] else {return}
+                    newRecentChat.userDisplayName = snapUserDict["displayName"] as! String
+                    newRecentChat.avatarURL = snapUserDict["avatarUrl"] as! String
+                    self.listChat.append(newRecentChat)
+                    self.listenConversationUpdatedFromFirebase(data: [newRecentChat])
+                    self.updateUI()
+                })
+                
+            })
+        
+        })
+    }
+    
+    // Lắng nghe node conversations của user đăng nhập khi có thêm mới
+    func listenConversationAddedFromFirebase() {
+        
+        self.fireBaseRef.child("Users").child((userCurrent?.id)!).child("conversations").observe(.childAdded, with: { (snap) in
+            
+            
+            guard let snapDict = snap.value as? [String:Bool] else { return }
+            
+            
+            // Nếu phòng chat đã có trong mảng data thì bỏ qua
+            for recentChat in self.listChat {
+                if recentChat.keyID == snap.key { return }
+            }
+            for item in snapDict{
+                guard item.value == true
+                else {
+                    //Thêm lắng nghe
+                    let recentChatDontDisplay = RecentChat()
+                    recentChatDontDisplay.keyID = snap.key
+                    recentChatDontDisplay.receiverUserID = item.key
+                    self.listenConversationUpdatedFromFirebase(data: [recentChatDontDisplay])
+                    return
+                }
+            }
+            
+            //Lay id user trong phong chat
+            let idUserReceiver = snapDict.keys.first
+            self.fireBaseRef.child("Conversations").child(snap.key).observeSingleEvent(of: .value, with: {(snapData) in
+                guard let snapCon = snapData.value as? [String:AnyObject] else { return }
+                let newRecentChat = RecentChat()
+                newRecentChat.keyID = snap.key
+                newRecentChat.lastestMess = snapCon["lastMessage"]! as! String
+                newRecentChat.lastUpdatedTime = snapCon["lastTimeUpdated"] as! Float
+                newRecentChat.receiverUserID = idUserReceiver!
+                
+                self.fireBaseRef.child("Users").child(idUserReceiver!).observeSingleEvent(of: .value, with: { (snapUser) in
+                    guard let snapUserDict = snapUser.value as? [String:AnyObject] else {return}
+                    newRecentChat.userDisplayName = snapUserDict["displayName"] as! String
+                    newRecentChat.avatarURL = snapUserDict["avatarUrl"] as! String
+                    self.listChat.append(newRecentChat)
+                    self.listenConversationUpdatedFromFirebase(data: [newRecentChat])
+                    self.updateUI()
+                })
+            
+            })
+
+        })
+    }
+    
+    // Lắng nghe node conversations của user đăng nhập khi có xoá
+    func listenConversationRemovedFromFirebase() {
+        
+        self.fireBaseRef.child("Users").child((userCurrent?.id)!).child("conversations").observe(.childRemoved, with: { (snap) in
+            
+            for i in 0 ..< self.listChat.count {
+                
+                let recentChat = self.listChat[i]
+                
+                if snap.key == recentChat.keyID {
+                    self.listChat.remove(at: i)
+                    
+                    self.updateUI()
+                    break
+                }
+            }
+        })
+        
+    }
+    
+    
+    //Lắng nghe data của conversation thay đổi (node Conversations )
+    func listenConversationUpdatedFromFirebase(data:[RecentChat]) {
+        for recentChat in data {
+            self.fireBaseRef.child("Conversations").child(recentChat.keyID).observe(.childChanged, with: { (snap) in
+                guard snap.key == "lastMessage" || snap.key == "lastTimeUpdated" || snap.key == "mesages" else {return}
+//                if snap.key == "mesages" {
+                self.fireBaseRef.child("Users").child((self.userCurrent?.id)!).child("conversations").child(recentChat.keyID).child(recentChat.receiverUserID).setValue(true)
+//                }else{
+//                    return
+//                }
+                guard let snapDict = snap.value as? String else { return }
+                
+                for i in 0 ..< self.listChat.count {
+                    let recentChat = self.listChat[i]
+                    if recentChat.keyID == self.listChat[i].keyID {
+                        
+                        if snap.key == "lastMessage"{
+                            recentChat.lastestMess      = snapDict
+                        }
+                        if snap.key == "lastTimeUpdated"{
+                            recentChat.lastUpdatedTime  = Float(snapDict)!
+                        }
+                        self.listChat[i]            = recentChat
+                        self.updateUI()
+                        break
+                    }
+                }
+            })
+        }
+
+    }
+
+
+}
+
+extension ConversationsViewController:UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return listChat.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        var cell = tableView.dequeueReusableCell(withIdentifier: "cell") as? ConversationsTableViewCell
+        if cell == nil {
+            cell = ConversationsTableViewCell()
+        }
+        
+        let recentChat = listChat[indexPath.row]
+        cell?.lblNameConversations.text = recentChat.userDisplayName
+        cell?.lblLastMessage.text = recentChat.lastestMess
+        
+        let newSize = CGSize(width: 44, height: 44)
+        
+        if let avatDownloaded = cacheImages.object(forKey: recentChat.avatarURL as AnyObject) as? UIImage {
+            cell?.imgConversations.image = avatDownloaded
+        } else {
+            
+            cell?.imgConversations.image = UIImage.imageWithColor(UIColor.lightGray, size: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+            
+            DispatchQueue.global().async {
+                if let url = URL(string: recentChat.avatarURL) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+                                
+                                self.cacheImages.setObject(resultImg, forKey: recentChat.avatarURL as AnyObject)
+                                cell?.imgConversations.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+            
+        }
+        
+        return cell!
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let recentChat = listChat[indexPath.row]
+        if !recentChat.keyID.isEmpty {
+            let chatVC = ChatViewController()
+            chatVC.conversationKey = recentChat.keyID
+            self.navigationController?.pushViewController(chatVC, animated: true)
+        }
+        tableView.deselectRow(at: indexPath, animated: false)
+    }
+    
+    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+        return true
+    }
+    
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            let recentChat = listChat[indexPath.row]
+           // self.fireBaseRef.child("Users").child(recentChat.receiverUserID).child("conversations").child(recentChat.keyID).child((self.userCurrent?.id)!).setValue(false)
+            
+            self.fireBaseRef.child("Users").child((self.userCurrent?.id)!).child("conversations").child(recentChat.keyID).child(recentChat.receiverUserID).setValue(false)
+            
+            //self.fireBaseRef.child("Conversations").child(recentChat.keyID).removeValue()
+            
+            listChat.remove(at: indexPath.row)
+            tableView.deleteRows(at: [indexPath], with: UITableViewRowAnimation.automatic)
+        }
+    }
+    
+    
+}

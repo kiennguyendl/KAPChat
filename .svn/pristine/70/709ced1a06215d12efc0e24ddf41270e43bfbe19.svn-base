@@ -1,0 +1,117 @@
+//
+//  PostCell.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 07/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Foundation
+import Firebase
+protocol PhotoPostCellDelegate: class{
+    func tapOnPhoto(cell: PostCell, tap: UITapGestureRecognizer)
+    func tapOnLikeImage(cell:PostCell,tap:UITapGestureRecognizer)
+}
+
+class PostCell: UITableViewCell {
+
+    
+    @IBOutlet weak var likeLbl: UILabel!
+    @IBOutlet weak var caption: UITextView!
+    @IBOutlet weak var postImg: UIImageView!
+    @IBOutlet weak var likeImg: UIImageView!
+    @IBOutlet weak var usernameLbl: UILabel!
+    @IBOutlet weak var profileImg: UIImageView!
+    @IBOutlet weak var timeLbl: UILabel!
+    
+    weak var delegatePhotoPostCell:PhotoPostCellDelegate?
+    
+    var likesRef: FIRDatabaseReference!
+    let currentUserId = DataService.ds.currentuserID
+    
+    var post: Post!
+    
+    
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        let tapGesture: UITapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(tapOnPhoto(tap:)))
+        tapGesture.numberOfTapsRequired = 1
+        self.postImg.addGestureRecognizer(tapGesture)
+        postImg.isUserInteractionEnabled = true
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapOnLikeImage(tap:)))
+        tap.numberOfTapsRequired = 1
+        likeImg.addGestureRecognizer(tap)
+        likeImg.isUserInteractionEnabled = true
+        
+        profileImg.layer.cornerRadius = 0.5*profileImg.layer.bounds.size.width
+        profileImg.layer.masksToBounds = true
+        
+        postImg.layer.cornerRadius = 5
+        postImg.layer.masksToBounds = true
+        
+        let contentSize = caption.sizeThatFits(caption.bounds.size)
+        var frame = caption.frame
+        frame.size.height = contentSize.height
+        caption.frame = frame
+        // Initialization code
+        
+    }
+    override func setSelected(_ selected: Bool, animated: Bool) {
+
+    }
+    func tapOnPhoto(tap: UITapGestureRecognizer){
+        delegatePhotoPostCell?.tapOnPhoto(cell: self, tap: tap)
+       
+    }
+    func tapOnLikeImage(tap: UITapGestureRecognizer){
+        delegatePhotoPostCell?.tapOnLikeImage(cell: self, tap: tap)
+    }
+//    func customCell(post: Post) {
+//        self.post = post
+//        let newSize = CGSize(width: 100 , height: 200)
+//        let likesRef = DataService.ds.REF_USERS.child(currentUserId).child("listLike").child(post.postId!)
+//        if post.type == .Photo {
+//            //self.usernameLbl.text = userCurrent?.displayName
+//            self.caption.text = post.caption
+//            self.likeLbl.text = String(post.likes)
+////            if post == posts.first{
+////                cell?.timeLbl.text = "🔴 " + formatter.string(from: post.time as Date)
+////            }else{
+////                cell?.timeLbl.text = "📅 " + formatter.string(from: post.time as Date)
+////            }
+//            if let imageDownloaded = FeedViewController.cache.object(forKey: (post.imageUrl as AnyObject) as! NSString) as? UIImage {
+//                self.postImg.image = imageDownloaded
+//            }
+//            else {
+//                let ref = FIRStorage.storage().reference(forURL: post.imageUrl!)
+//                ref.data(withMaxSize: 2 * 1024 * 1024, completion: { (data, error) in
+//                    if error != nil {
+//                        print("JESS: Unable to download image from Firebase storage")
+//                    } else {
+//                        print("JESS: Image downloaded from Firebase storage")
+//                        if let imgData = data {
+//                            if let img = UIImage(data: imgData) {
+//                                let resultImg = img.scaleImage(newSize: newSize)
+//                                FeedViewController.cache.setObject(resultImg, forKey: (post.imageUrl as AnyObject) as! NSString)
+//                                self.postImg.image = resultImg
+//                            }
+//                        }
+//                    }
+//                })
+//            }
+//            
+//            likesRef.observeSingleEvent(of: .value, with: { (snapshot) in
+//                if let _ = snapshot.value as? NSNull {
+//                    self.likeImg.image = UIImage(named: "empty-heart")
+//                } else {
+//                    self.likeImg.image = UIImage(named: "filled-heart")
+//                }
+//            })
+//
+//        }
+//    }
+//    
+}
+

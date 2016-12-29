@@ -1,0 +1,90 @@
+//
+//  LoginViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class LoginViewController: BaseNonAuthenticatedViewController {
+
+    @IBOutlet weak var txtEmail: UITextField!
+    @IBOutlet weak var txtMatkhau: UITextField!
+    @IBOutlet weak var btnDangNhap: UIButton!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        txtEmail.becomeFirstResponder()
+        txtMatkhau.isSecureTextEntry = true
+        btnDangNhap.layer.masksToBounds = true
+        btnDangNhap.layer.cornerRadius = 10
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+//        if UserDefaults.standard.value(forKey: "userInfo") != nil{
+//            self.dismiss(animated: true, completion: nil)
+//        }
+    }
+    @IBAction func btnDangnhap(_ sender: Any) {
+        ////self.startLoading()
+        
+        guard let email = txtEmail.text, let password = txtMatkhau.text else {
+            self.stopLoading()
+            return
+        }
+        
+        if checkValidateValue() {
+            FIRAuth.auth()?.signIn(withEmail: email, password: password, completion: { (user, error) in
+                if let error = error {
+                    //self.stopLoading()
+                    self.showErrorFirebase(title: "Đăng nhập", error: error as NSError)
+                }
+                
+                if let _ = user{
+                    //save user info into User Default
+                    UserDefaults.standard.set(["email":email, "pw": password], forKey: "userInfo")
+                    UserDefaults.standard.synchronize()
+                    //self.stopLoading()
+                    self.dismiss(animated: true, completion: nil)
+                }
+            })
+        }else{
+            self.showAlert(title: "Opps", message: "Đăng nhập không thành công!")
+            //self.stopLoading()
+            return
+        }
+    }
+    
+    func checkValidateValue() -> Bool {
+        guard let email:String = txtEmail.text,
+            let pw:String = txtMatkhau.text
+            else { return false }
+        
+        if email == "" {
+            showAlert(title: "Login", message: "Vui lòng nhập email")
+            txtEmail.becomeFirstResponder()
+            return false
+        } else if !isValidEmail(emailStr: email) {
+            txtEmail.text = ""
+            txtEmail.becomeFirstResponder()
+            showAlert(title: "Login", message: "Địa chỉ email sai")
+            return false
+        }
+        
+        if pw == "" {
+            txtMatkhau.becomeFirstResponder()
+            showAlert(title: "Login", message: "Vui lòng điền mật khẩu")
+            return false
+        }
+        
+        return true
+        
+    }
+    
+    @IBAction func btnQuaylai(_ sender: Any) {
+        let vc = RegisterViewController()
+        self.present(vc, animated: true, completion: nil)
+    }
+}

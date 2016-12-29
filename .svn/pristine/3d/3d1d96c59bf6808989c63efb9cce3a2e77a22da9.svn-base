@@ -1,0 +1,33 @@
+//
+//  BaseViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class BaseViewController: UIViewController {
+
+    var hideKeyboardTap:UITapGestureRecognizer!
+    var keyboardHidden = true
+    lazy var fireBaseRef:FIRDatabaseReference = FIRDatabase.database().reference()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        print(fireBaseRef)
+        // Do any additional setup after loading the view.
+        
+    }
+
+    func handleLogout() {
+        
+        do {
+            try FIRAuth.auth()?.signOut()
+        } catch let logoutError {
+            print(logoutError)
+        }
+    }
+
+}

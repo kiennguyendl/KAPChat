@@ -1,0 +1,82 @@
+//
+//  RequestOfFriendViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/13/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+class RequestOfFriendViewController: BaseAuthenticatedViewController {
+    @IBOutlet weak var tableView: UITableView!
+    var listUserRequest: [User] = []
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        tableView.delegate = self
+        tableView.dataSource = self
+        tableView.register(UINib(nibName: "UserTableViewCell", bundle: nil), forCellReuseIdentifier: "Cell")
+        navigationItem.title = "Request Friend"
+        // Do any additional setup after loading the view.
+        listenRequestFromFriend()
+        tableView.reloadData()
+    }
+    
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        
+    }
+    
+    
+    func listenRequestFromFriend() {
+        self.fireBaseRef.database.reference().child("Users").child(currentuserID).child("RequestFriend").observe(.value, with: { (snap: FIRDataSnapshot) in
+            if let listRequestSnapshot:[FIRDataSnapshot] = snap.children.allObjects as? [FIRDataSnapshot]{
+                if listRequestSnapshot.count > 0{
+                    for requestSnapshot in listRequestSnapshot{
+                        //get user info through uid
+                        self.fireBaseRef.database.reference().child("Users").child(requestSnapshot.key).observeSingleEvent(of: .value, with: { (snap: FIRDataSnapshot) in
+                            guard let userDict = snap.value as? [String:AnyObject] else { return }
+                            if let userRequest = User(uid: snap.key, JsonData: userDict){
+                                self.listUserRequest.append(userRequest)
+                                self.tableView.reloadData()
+                            }
+                        })
+                    }
+                }
+            }
+        })
+    }
+    
+    func acceptRequest(sender:UIButton) {
+        let userRequest = listUserRequest[sender.tag]
+        self.fireBaseRef.child("Users").child(currentuserID).child("listFriend").child(userRequest.id).setValue(true)
+        //self.fireBaseRef.child("Users").child(currentuserID).child("RequestFriend").child(userRequest.id).setValue(true)
+        
+        self.fireBaseRef.child("Users").child(userRequest.id).child("listFriend").child(currentuserID).setValue(true)
+        //listenRequestFromFriend()
+    }
+    
+    func cancelRequest(sender:UIButton) {
+        let userRequest = listUserRequest[sender.tag]
+        self.fireBaseRef.child("Users").child(currentuserID).child("RequestFriend").child(userRequest.id).setValue(false)
+    }
+    
+    
+}
+
+extension RequestOfFriendViewController : UITableViewDelegate, UITableViewDataSource{
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return listUserRequest.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath) as! UserTableViewCell
+        cell.lblDisplatName.text = listUserRequest[indexPath.row].displayName
+        cell.btnAccept.addTarget(self, action: #selector(acceptRequest), for: .touchUpInside)
+        cell.btnCancel.addTarget(self, action: #selector(cancelRequest), for: .touchUpInside)
+        cell.btnAccept.tag = indexPath.row
+        cell.btnCancel.tag = indexPath.row
+        return cell
+    }
+}
+

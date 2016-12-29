@@ -1,0 +1,524 @@
+//
+//  FeedViewController.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 07/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+import MobileCoreServices
+
+@IBDesignable
+
+class FeedViewController: BaseAuthenticatedViewController,UIImagePickerControllerDelegate,UINavigationControllerDelegate {
+    
+    var storage: FIRStorage!
+    var cache = NSCache<AnyObject,AnyObject>()
+    // var cacheImage = [Int: UIImage]()
+    @IBOutlet weak var captionField: UITextField!
+    @IBOutlet weak var imageAdd: UIImageView!
+    @IBOutlet weak var tableView: UITableView!
+    @IBOutlet weak var postBtn: UIButton!
+    var userCurrent:User!
+    
+    var posts = [Post]()
+    var users = [User]()
+    var UID: String = ""
+    static var cache = NSCache<NSString, AnyObject>()
+    var imagePicker = UIImagePickerController()
+    //var imagePicker: UIImagePickerController!
+    var imageSelected = false
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        
+        //getListPostFromCurrentUser()
+        //getListPostFromCurrentUserFriend2()
+        //getCurrentUserInfo()
+        //eventAddNewPost()
+        getFriendInfo()
+        //getUserInfoByPostID()
+        
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.register(UINib(nibName: "PostCell", bundle: nil), forCellReuseIdentifier: "photoCell")
+        //tableView.register(UINib(nibName: "TextCell", bundle: nil), forCellReuseIdentifier: "textCell")
+        
+        tableView.rowHeight = UITableViewAutomaticDimension
+        tableView.estimatedRowHeight = 500
+        
+        imageAdd.layer.cornerRadius = 0.5*imageAdd.layer.bounds.size.width
+        imageAdd.layer.masksToBounds = true
+        
+        postBtn.layer.cornerRadius = 0.5*imageAdd.layer.bounds.size.width
+        postBtn.layer.masksToBounds = true
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.addImageTapped(_:)))
+        tap.numberOfTapsRequired = 1
+        imageAdd.addGestureRecognizer(tap)
+        imageAdd.isUserInteractionEnabled = true
+        
+        
+        let tapPostBtn = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.postBtnTapped(_:)))
+        postBtn.addGestureRecognizer(tapPostBtn)
+        postBtn.isUserInteractionEnabled = true
+    }
+    
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    
+    func moveToTimeLineScreen(){
+        let vc = TimeLineUserViewController()
+        vc.uid = self.UID
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    
+    func addImageTapped(_ sender: UITapGestureRecognizer){
+        imagePicker.allowsEditing = true
+        imagePicker.delegate = self
+        imagePicker.sourceType = .photoLibrary
+        imagePicker.mediaTypes = ["public.image","public.movie"]
+        present(imagePicker, animated: true, completion: nil)
+    }
+    
+    @IBAction func postBtnTapped(_ sender: AnyObject) {
+        let caption = captionField.text
+        if imageSelected == true{
+            let img = imageAdd.image
+            if let imgData = UIImageJPEGRepresentation(img!,0.1) {
+                let imgUid = NSUUID().uuidString
+                uploadImageToFirebase(data: imgData as NSData, withPath: imgUid, completed: { (url) in
+                    self.postToFirebase(type:.Photo,caption: caption!, imgUrl: url)
+                })
+                showAlert(title: "Congratulation", message: "Your status has been updated onto news feed")
+            }
+        }
+        tableView.reloadData()
+    }
+    func uploadImageToFirebase(data:NSData, withPath: String, completed: @escaping(String) -> Void)
+    {
+        let storageRef = FIRStorage.storage().reference(withPath: "Image/" + "\(withPath)")
+        let uploadMetadata = FIRStorageMetadata()
+        uploadMetadata.contentType = "image/jpeg"
+        storageRef.put(data as Data, metadata: uploadMetadata) { (metadata,error) in
+            if ( error != nil)
+            {
+                print("Error: Unable to upload image to Firebase storage")
+            }else{
+                print("Message: Successfully uploaded image to Firebase storage")
+                print("Here's your download URL: \(metadata?.downloadURL())")
+                let downloadURL = metadata?.downloadURL()?.absoluteString
+                if let url = downloadURL {
+                    completed(url)
+                }
+                
+            }
+        }
+    }
+    func uploadMovieToFirebase(url:NSURL)
+    {   let videoUid = NSUUID().uuidString
+        let storageRef = FIRStorage.storage().reference(withPath: "Video/" + "\(videoUid)")
+        let uploadMetadata = FIRStorageMetadata()
+        uploadMetadata.contentType = "video/quicktime"
+        storageRef.putFile(url as URL, metadata: uploadMetadata){ (metadata,error) in
+            if (error != nil) {
+                print("Got an error: \(error)")
+            }else{
+                print("Upload complete! Here's some metadata: \(metadata)")
+                print("Your download URL is \(metadata?.downloadURL())")
+            }
+        }
+    }
+    func eventAddNewPost()
+    {
+        let currentUserId = self.currentuserID
+        self.fireBaseRef.child("Post").child(currentUserId).observe(.childAdded, with:{(snapshot) in
+            if let postDictionary = snapshot.value as? [String:AnyObject]{
+                let post = Post(postID: snapshot.key, postData: postDictionary)
+                self.posts.append(post!)
+                DispatchQueue.global().async{
+                    DispatchQueue.main.async {
+                        self.sortPosts()
+                    }
+                }
+                
+            }
+        })
+    }
+    //    func getCurrentUserInfo(){
+    //        let currentUserId = self.currentuserID
+    //        self.fireBaseRef.child("Users").child(currentUserId).observeSingleEvent(of: .value, with: {(snap) in
+    //
+    //            guard let userDict = snap.value as? [String:AnyObject] else { return }
+    //
+    //            if let user = User(uid: snap.key, JsonData: userDict) {
+    //                self.userCurrent = user
+    //            }
+    //
+    //        })
+    //    }
+    func getFriendInfo()
+    {
+        let currentUserId = self.currentuserID
+        self.fireBaseRef.child("Users").child(currentUserId).observeSingleEvent(of: .value, with: {(snap) in
+            
+            guard let userDict = snap.value as? [String:AnyObject] else { return }
+            
+            if let user = User(uid: snap.key, JsonData: userDict) {
+                self.userCurrent = user
+                self.users.append(user)
+            }
+            
+        })
+        
+        self.fireBaseRef.child("Users").child(currentUserId).child("listFriend").observeSingleEvent(of: .value, with: { (listfriend) in
+            for friend in listfriend.children.allObjects  as! [FIRDataSnapshot]{
+                
+                self.fireBaseRef.child("Users").child(friend.key).observeSingleEvent(of: .value, with: {(snapshot) in
+                    if let userDictionary = snapshot.value as? [String:AnyObject] {
+                        if let user = User(uid: snapshot.key, JsonData: userDictionary) {
+                            print("\(user.displayName)")
+                            self.users.append(user)
+                        }
+                    }
+                    //flag
+                    self.getListPostFromCurrentUserFriend2()
+                    self.eventAddNewPost()
+                })
+            }
+            
+        })
+    }
+    
+    func getListPostFromCurrentUser()
+    {
+        let currentUserId = self.currentuserID
+        var handle:UInt = 0
+        let ref = self.fireBaseRef.child("Post").child(currentUserId)
+        handle = ref.observe(.value, with: { (snapshot) in
+            for item in snapshot.children.allObjects as! [FIRDataSnapshot]{
+                if let postDictionary = item.value as? [String:AnyObject]{
+                    let post = Post(postID: item.key, postData: postDictionary)
+                    self.posts.append(post!)
+                    self.sortPosts()
+                }
+            }
+        })
+        ref.removeObserver(withHandle: handle)
+    }
+    
+    // Lấy id của user hiện tại => lấy listFriend của user hiện tại => lấy bài post của mỗi người trong listFriend.
+    //    func getListPostFromCurrentUserFriend(){
+    //        let currentUserId = self.currentuserID
+    //        self.fireBaseRef.child("Users").child(currentUserId).child("listFriend").observeSingleEvent(of: .value, with: { (listfriend) in
+    //                for friend in listfriend.children.allObjects as! [FIRDataSnapshot] {
+    //                    self.fireBaseRef.child("Post").child(friend.key).observeSingleEvent(of: .value, with: { (listpost) in
+    //                        for post in listpost.children.allObjects as! [FIRDataSnapshot]{
+    //                            let value = post.value as? NSDictionary
+    //                            let caption = value?["caption"] as? String ?? ""
+    //                            let imageUrl = value?["imageUrl"] as? String ?? ""
+    //                            let likes = value?["likes"] as! Int
+    //                            let time2 = value?["time"] as? String
+    //                            let time3 = Double(time2!)
+    //                            let time = NSDate(timeIntervalSince1970: time3!)
+    //
+    //
+    //                                let post = Post(postId: post.key,caption: caption, imageUrl: imageUrl, time: time, likes: likes)
+    //                                self.posts.append(post!)
+    //                                self.sortPosts()
+    //                            }
+    //
+    //
+    //                    })
+    //                }
+    //        })
+    //    }
+    func getListPostFromCurrentUserFriend2(){
+        let currentUserId = self.currentuserID
+        var handle:UInt = 0
+        let ref1 = self.fireBaseRef.child("Post").child(currentUserId)
+        handle = ref1.observe(.value, with: { (snapshot) in
+            for item in snapshot.children.allObjects as! [FIRDataSnapshot] {
+                if let postDictionary = item.value as? [String:AnyObject]{
+                    let post = Post(postID: item.key, postData: postDictionary)
+                    self.posts.append(post!)
+                    self.sortPosts()
+                }
+            }
+        })
+        ref1.removeObserver(withHandle: handle)
+        
+        self.fireBaseRef.child("Users").child(currentUserId).child("listFriend").observeSingleEvent(of: .value, with: { (listfriend) in
+            for friend in listfriend.children.allObjects as! [FIRDataSnapshot] {
+                self.fireBaseRef.child("Post").child(friend.key).observeSingleEvent(of: .value, with: { (listpost) in
+                    for item in listpost.children.allObjects as! [FIRDataSnapshot] {
+                        if let postDictionary = item.value as? [String:AnyObject]{
+                            let post = Post(postID: item.key, postData: postDictionary)
+                            self.posts.append(post!)
+                            self.sortPosts()
+                            //self.tableView.reloadData()
+                        }
+                    }
+                })
+            }
+        })
+    }
+    
+    
+    func sortPosts() {
+        self.posts.sort{$0.time.compare($1.time as Date) == .orderedDescending}
+        self.tableView.reloadData()
+    }
+    
+    func postToFirebase(type: PostType ,caption: String ,imgUrl: String ) {
+        let currentUserId   = self.currentuserID
+        let currentTime     = NSDate().timeIntervalSince1970
+        
+        let post: [String : AnyObject] = [
+            "caption": caption as AnyObject,
+            "type": (type == .Photo) ? "photo" as AnyObject : "text" as AnyObject,
+            "imageUrl": imgUrl as AnyObject,
+            "time": currentTime as AnyObject,
+            "likes": 0 as AnyObject,
+            "createdBy": currentUserId as AnyObject
+        ]
+        
+        let firebasePost = self.fireBaseRef.child("Post").child(currentUserId).childByAutoId()
+        firebasePost.setValue(post)
+        
+        captionField.text = ""
+        imageSelected = false
+        imageAdd.image = UIImage(named: "add-image")
+        
+        tableView.reloadData()
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        guard let mediaType:String = info[UIImagePickerControllerMediaType] as? String else {
+            dismiss(animated: true, completion: nil)
+            return
+        }
+        if mediaType == (kUTTypeImage as String){
+            if let pickedImage = info[UIImagePickerControllerOriginalImage] as? UIImage {
+                let pickedImageUrl = info[UIImagePickerControllerReferenceURL] as! NSURL
+                imageAdd.contentMode = .scaleAspectFit
+                imageAdd.image = pickedImage
+                imageSelected = true
+                print("\(pickedImageUrl)")
+            }else{
+                print("Error: A valid image wasn't selected")}
+            dismiss(animated: true, completion: nil)
+        }else if mediaType == (kUTTypeMovie as String){
+            if let movieURL = info[UIImagePickerControllerMediaURL] as? NSURL{
+                uploadMovieToFirebase(url: movieURL)
+            }
+        }
+        dismiss(animated: true, completion: nil)
+    }
+    
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        dismiss(animated: true)
+    }
+    
+}
+
+
+extension FeedViewController:UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return posts.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        // Lấy bài post ở vị trí row index
+        let post = posts[indexPath.row]
+        
+        self.UID = post.createdBy!
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH: mm - dd/MM/yyyy"
+        
+        let newSize = CGSize(width: 100 , height: 200)
+        let avtSize = CGSize(width: 40, height: 40)
+        
+        // Nếu bài post có chứa hình
+        let cell = tableView.dequeueReusableCell(withIdentifier: "photoCell") as? PostCell
+        if post.type == .Photo {
+            
+            let arrUserCell = users.filter{($0.id == post.createdBy!)}
+            if arrUserCell.count > 0 {
+                let userCell = arrUserCell[0]
+                cell?.usernameLbl.text = userCell.displayName
+                
+                //Lấy avatar của user
+                if let imageDownloaded = cache.object(forKey: userCell.avatarUrl as AnyObject) as? UIImage {
+                    cell?.profileImg.image = imageDownloaded
+                }
+                else {
+                    let userRef = FIRStorage.storage().reference(forURL: userCell.avatarUrl)
+                    userRef.data(withMaxSize: 2 * 1024 * 1024, completion: { (data, error) in
+                        if error != nil {
+                            print("JESS: Unable to download image from Firebase storage")
+                        } else {
+                            print("JESS: Image downloaded from Firebase storage")
+                            if let imgData = data {
+                                if let img = UIImage(data: imgData) {
+                                    let resultImg = img.scaleImage(newSize: avtSize)
+                                    self.cache.setObject(resultImg, forKey: userCell.avatarUrl as AnyObject)
+                                    cell?.profileImg.image = resultImg
+                                }
+                            }
+                        }
+                    })
+                }
+                
+            }
+            
+            cell?.delegatePhotoPostCell = self
+            //let cell = Bundle.main.loadNibNamed("PostCell", owner: self, options: nil)?.first as? PostCell
+            //cell?.usernameLbl.text = userCurrent?.displayName
+            let tapLikeGesture = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.tapOnLikeImage(cell:tap:)))
+
+            let tapGesture = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.moveToTimeLineScreen))
+            cell?.usernameLbl.addGestureRecognizer(tapGesture)
+            cell?.likeImg.addGestureRecognizer(tapLikeGesture)
+            cell?.caption.text = post.caption
+            cell?.likeLbl.text = String(post.likes)
+            if post == posts.first{
+                cell?.timeLbl.text = "🔴 " + formatter.string(from: post.time as Date)
+            }else{
+                cell?.timeLbl.text = "📅 " + formatter.string(from: post.time as Date)
+            }
+            if let imageDownloaded = cache.object(forKey: post.imageUrl as AnyObject) as? UIImage {
+                cell?.postImg.image = imageDownloaded
+            } else {
+                let ref = FIRStorage.storage().reference(forURL: post.imageUrl!)
+                ref.data(withMaxSize: 2 * 1024 * 1024, completion: { (data, error) in
+                    if error != nil {
+                        print("JESS: Unable to download image from Firebase storage")
+                    } else {
+                        print("JESS: Image downloaded from Firebase storage")
+                        if let imgData = data {
+                            if let img = UIImage(data: imgData) {
+                                let resultImg = img.scaleImage(newSize: newSize)
+                                self.cache.setObject(resultImg, forKey: post.imageUrl as AnyObject)
+                                cell?.postImg.image = resultImg
+                            }
+                        }
+                    }
+                })
+            }
+            // Download avatar current user và hiển thị lên cell
+            let likesRef = fireBaseRef.child("Users").child(currentuserID).child("listLike").child(post.postId!)
+            likesRef.observeSingleEvent(of: .value, with: { (snapshot) in
+                if let _ = snapshot.value as? NSNull {
+                    cell?.likeImg.image = UIImage(named: "empty-heart")
+                } else {
+                    cell?.likeImg.image = UIImage(named: "filled-heart")
+                }
+            })
+            
+            
+        }
+        return cell!
+    }
+}
+//cell.customCell(post: post)
+extension FeedViewController:PhotoPostCellDelegate{
+    
+    func tapOnPhoto(cell: PostCell, tap: UITapGestureRecognizer) {
+        let imageView = cell.postImg as UIImageView
+        
+        self.navigationController?.isNavigationBarHidden = true
+        let newImageView = UIImageView(image: imageView.image)
+        
+        newImageView.frame = self.view.frame
+        
+        newImageView.backgroundColor = .black
+        
+        newImageView.contentMode = .scaleToFill
+        
+        newImageView.isUserInteractionEnabled = true
+        
+        
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(self.dismissFullscreenImage(sender:)))
+        
+        newImageView.addGestureRecognizer(tap)
+        
+        self.view.addSubview(newImageView)
+        
+    }
+    func dismissFullscreenImage(sender: UITapGestureRecognizer) {
+        
+        sender.view?.removeFromSuperview()
+        
+        self.navigationController?.isNavigationBarHidden = false
+        
+    }
+    func tapOnLikeImage(cell: PostCell, tap: UITapGestureRecognizer) {
+        let likesRef = fireBaseRef.child("Users").child(currentuserID).child("listLike")
+        likesRef.observeSingleEvent(of: .value, with: { (snapshot) in
+            if let _ = snapshot.value as? NSNull {
+                cell.likeImg.image = UIImage(named: "filled-heart")
+                //self.post.adjustLikes(addLike: true)
+                cell.likesRef.setValue(true)
+            } else {
+                cell.likeImg.image = UIImage(named: "empty-heart")
+                //self.post.adjustLikes(addLike: false)
+                cell.likesRef.removeValue()
+            }
+        })
+    }
+}
+
+//        else
+//        {
+//            let cell = Bundle.main.loadNibNamed("TextCell", owner: self, options: nil)?.first as? TextCell
+//            cell?.usernameLbl.text = userCurrent?.displayName
+//            cell?.caption.text = post.caption
+//            cell?.likeLbl.text = String(post.likes)
+//            if post == posts.first{
+//                cell?.timeLbl.text = "🔴 " + formatter.string(from: post.time as Date)
+//            }else{
+//                cell?.timeLbl.text = "📅 " + formatter.string(from: post.time as Date)
+//            }
+//            if let imageDownloaded = cache.object(forKey: userCurrent?.avatarUrl as AnyObject) as? UIImage {
+//                cell?.profileImg.image = imageDownloaded
+//            }else {
+//                let userRef = FIRStorage.storage().reference(forURL: userCurrent.avatarUrl)
+//                userRef.data(withMaxSize: 2 * 1024 * 1024, completion: { (data, error) in
+//                if error != nil {
+//                    print("JESS: Unable to download image from Firebase storage")
+//                } else {
+//                    print("JESS: Image downloaded from Firebase storage")
+//                    if let imgData = data {
+//                        if  let img = UIImage(data: imgData) {
+//                            let resultImg = img.scaleImage(newSize: avtSize)
+//                            self.cache.setObject(resultImg, forKey: self.userCurrent?.avatarUrl as AnyObject)
+//                            cell?.profileImg.image = resultImg
+//                            }
+//                    }
+//                }
+//            })
+//        }
+//            return cell!
+//        }
+//    }
+//}
+
+
+
+
+
+
+
+
+

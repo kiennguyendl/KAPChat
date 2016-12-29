@@ -1,0 +1,31 @@
+//
+//  UserinfoViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class UserinfoViewController: BaseAuthenticatedViewController {
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        self.navigationItem.rightBarButtonItem?.action
+    }
+    
+    @IBAction func btnLogout(_ sender: Any) {
+        self.startLoading()
+        self.setStatusOnlineOrOffline(isLogin: false, isDisconnect: true)
+        self.handleLogout()
+        UserDefaults.standard.removeObject(forKey: "userInfo")
+        self.stopLoading()
+        self.navigationController?.popToRootViewController(animated: true)
+    }
+    @IBAction func btnRequestFriend(_ sender: Any) {
+        let vc = RequestOfFriendViewController()
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+}

@@ -1,0 +1,142 @@
+//
+//  FeedViewController.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 07/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class FeedViewController: UIViewController {
+
+    
+    @IBOutlet weak var captionField: UITextField!
+    @IBOutlet weak var imageAdd: UIImageView!
+    @IBOutlet weak var tableView: UITableView!
+    @IBOutlet weak var postBtn: UIButton!
+    var posts = [Post]()
+    
+    var imagePicker: UIImagePickerController!
+    var imageSelected = false
+   
+    override func viewDidLoad() {
+        super.viewDidLoad()
+     
+        
+        let post1 = Post(caption: "Hằng năm cứ vào cuối thu, lá ngoài đường rụng nhiều và trên không có những đám mây bàng bạc, lòng tôi lại nao nức những kỷ niệm hoang mang của buổi tựu trường.Tôi không thể nào quên được những cảm giác trong sáng ấy nảy nở trong lòng tôi như mấy cành hoa tươi mỉm cười giữa bầu trời quang đãng.", imageUrl: "http://anh.24h.com.vn/upload/4-2015/images/2015-11-02/1446436640-binhluananh--12-.jpg", likes: 1000)
+        
+        let post2 = Post(caption: "Dọc đường tôi thấy mấy cậu nhỏ trạc bằng tôi, áo quần tươm tất, nhí nhảnh gọi tên nhau hay trao sách vở cho nhau xem mà tôi thèm. Hai quyển vở mới đang ở trên tay tôi đã bắt đầu thấy nặng. Tôi bặm tay ghì thật chặt, nhưng một quyển vở cũng chìa ra và chênh đầu chúi xuống đất. Tôi xóc lên và nắm lại cẩn thận. Mấy cậu đi trước có sách vở thiệt nhiều lại kèm cả bút thước nữa. Nhưng mấy cậu không để lộ vẻ khó khăn gì hết.", imageUrl: "http://file.vforum.vn/hinh/2014/3/hinh-binh-luan-facebook-5.jpg", likes: 1001)
+        
+        let post3 = Post(caption: "Yêu không dám nói - Phạm Trưởng", imageUrl: "https://lh5.googleusercontent.com/-phi2c7cpesA/U8X82kpJqGI/AAAAAAAAJYA/llNMGZb9ga0/s640/gia-dinh-nha-cho-nau-dog-sylvanian-family-1460-2.jpg", likes: 989)
+        
+        let post4 = Post(caption: "Lần ấy trường đối với tôi là một nơi xa lạ. Tôi đi chung quanh các lớp để nhìn qua cửa kính mấy bản đồ treo trên tường. Tôi không có cảm tưởng gì khác là nhà trường cao ráo sạch sẽ hơn các nhà trong làng.", imageUrl: "http://thuvienanhdep.net/wp-content/uploads/2015/10/bo-suu-tap-nhung-hinh-anh-che-cua-nhung-em-be-cuc-dinh-va-hai-huoc-2.jpg", likes: 1000)
+        
+        
+        posts.append(post1)
+        posts.append(post2)
+        posts.append(post3)
+        posts.append(post4)
+        
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.register(UINib(nibName: "PostCell", bundle: nil), forCellReuseIdentifier: "Cell")
+        tableView.rowHeight = UITableViewAutomaticDimension
+        tableView.estimatedRowHeight = 500
+        
+        
+        imagePicker = UIImagePickerController()
+        imagePicker.allowsEditing = true
+        imagePicker.delegate = self
+        
+        imageAdd.layer.cornerRadius = 0.5*imageAdd.layer.bounds.size.width
+        imageAdd.layer.masksToBounds = true
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.addImageTapped(_:)))
+        imageAdd.addGestureRecognizer(tap)
+        imageAdd.isUserInteractionEnabled = true
+        
+        let tapPostBtn = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.postBtnTapped(_sender:)))
+        postBtn.addGestureRecognizer(tapPostBtn)
+        postBtn.isUserInteractionEnabled = true
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    func addImageTapped(_ sender: UITapGestureRecognizer){
+
+        present(imagePicker, animated: true, completion: nil)
+    }
+    
+    func postBtnTapped(_sender: UITapGestureRecognizer){
+        
+        
+        guard let caption = captionField.text, caption != "" else {
+            print("Caption must be entered")
+            return
+        }
+//        guard let img = imageAdd.image, imageSelected == true else {
+//            print("An image must be selected")
+//            return
+//        }
+        let newPost = Post(caption: caption, imageUrl: "", likes: 0)
+        textFieldDidBeginEditing(captionField)
+        posts.append(newPost)
+        tableView.reloadData()
+        
+    }
+
+}
+extension FeedViewController:UITableViewDelegate,UITableViewDataSource{
+       func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return posts.count
+    }
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell") as? PostCell
+        let post = posts[indexPath.row]
+        if let url = NSURL(string: post.imageUrl!){
+            cell?.caption.text = post.caption
+            cell?.likeLbl.text = String(post.likes!)
+            if let data = NSData(contentsOf: url as URL) {
+                cell?.postImg.image = UIImage(data: data as Data)
+            }
+        }
+
+
+//            if let img = FeedVC.imageCache.object(forKey: post.imageUrl) {
+//                cell.configureCell(post: post, img: img)
+//            } else {
+//                cell.configureCell(post: post)
+//            }
+        return cell!
+//        } else {
+//            return PostCell()
+//        }
+    }
+}
+extension FeedViewController:UIImagePickerControllerDelegate,UINavigationControllerDelegate{
+    private func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : AnyObject]) {
+            if let image = info[UIImagePickerControllerEditedImage] as? UIImage {
+                imageAdd.image = image
+                imageSelected = true
+            } else {
+                print("JESS: A valid image wasn't selected")
+            }
+            imagePicker.dismiss(animated: true, completion: nil)
+        
+    }
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        dismiss(animated: true)
+    }
+}
+extension FeedViewController:UITextFieldDelegate{
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        textField.text = ""
+    }
+}
+

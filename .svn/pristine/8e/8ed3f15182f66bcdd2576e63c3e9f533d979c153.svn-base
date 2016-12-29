@@ -1,0 +1,38 @@
+//
+//  BaseAuthenticatedViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class BaseAuthenticatedViewController: BaseViewController{
+    
+    let storageRef = FIRStorage.storage().reference()
+    
+    var currentuserID:String {
+        return FIRAuth.auth()!.currentUser!.uid
+        
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        //self.handleLogout()
+        let isLogin = FIRAuth.auth()!.currentUser
+        if isLogin == nil{
+            DispatchQueue.main.async(flags: .barrier) {
+                let vc = LoginViewController()
+                self.present(vc, animated: true, completion: nil)
+            }
+        }
+        
+    }
+}

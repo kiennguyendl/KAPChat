@@ -1,0 +1,105 @@
+//
+//  UserinfoViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class UserinfoViewController: BaseAuthenticatedViewController,UIImagePickerControllerDelegate,UINavigationControllerDelegate {
+
+    
+    @IBOutlet weak var imgAvatar: UIImageView!
+    @IBOutlet weak var textDisplayName: UITextField!
+    @IBOutlet weak var textStatus: UITextView!
+    @IBOutlet weak var btnCapNhapStatus: UIButton!
+    @IBOutlet weak var btnLoimoiketban: UIButton!
+    @IBOutlet weak var btnLogout: UIButton!
+    
+    var imagePicker = UIImagePickerController()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        //self.navigationItem.rightBarButtonItem?.action
+        btnCapNhapStatus.layer.masksToBounds = true
+        btnCapNhapStatus.layer.cornerRadius = 10
+        
+        btnLoimoiketban.layer.masksToBounds = true
+        btnLoimoiketban.layer.cornerRadius = 10
+        
+        btnLogout.layer.masksToBounds = true
+        btnLogout.layer.cornerRadius = 10
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        if let pickedImage = info[UIImagePickerControllerOriginalImage] as? UIImage {
+            imgAvatar.contentMode = .scaleAspectFit
+            imgAvatar.image = pickedImage
+            if let imgData = UIImageJPEGRepresentation(pickedImage, 0.1){
+                let imgPath = NSUUID().uuidString
+//                uploadImageToFirebase(data: imgData as NSData, withPath: imgPath, completed: {(url) in
+//                    self.fireBaseRef.child("Users").child(self.currentuserID).child("avatarUrl").setValue(url)
+//                    self.userCurrent.avatarUrl = url
+//                    self.loadAvatar()
+//                    self.tableView.reloadData()
+//                })
+            }
+        }
+        
+        dismiss(animated: true, completion: nil)
+    }
+    
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        dismiss(animated: true, completion: nil)
+    }
+    
+    //log out account
+    @IBAction func btnLogout(_ sender: Any) {
+        self.startLoading()
+        self.setStatusOnlineOrOffline(isLogin: false, isDisconnect: true)
+        self.handleLogout()
+        UserDefaults.standard.removeObject(forKey: "userInfo")
+        self.stopLoading()
+        self.navigationController?.popToRootViewController(animated: true)
+    }
+    @IBAction func btnRequestFriend(_ sender: Any) {
+        let vc = RequestOfFriendViewController()
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    
+    @IBAction func btnUpdateStatus(_ sender: Any) {
+        
+    }
+    
+    //show dialog for user change avatar
+    func showDialog() {
+        let alert = UIAlertController(title: "Ảnh đại diện", message: nil, preferredStyle: .actionSheet)
+        //hiển thị tuỳ chọn cho người dùng nếu chưa đăng nhập hoặc chưa đăng ký
+        alert.addAction(UIAlertAction(title: "Chọn ảnh từ gallary", style: .default, handler: { (action) in
+            self.imagePicker.delegate = self
+            self.imagePicker.allowsEditing = true
+            self.imagePicker.sourceType = .photoLibrary
+            
+            self.present(self.imagePicker, animated: true, completion: nil)
+            
+        }))
+        
+        alert.addAction(UIAlertAction(title: "Tới trang cá nhân", style: .default, handler: { (action) in
+            let vc = TimeLineUserViewController()
+            vc.uid = self.currentuserID
+            self.navigationController?.pushViewController(vc, animated: true)
+            
+        }))
+        
+        alert.addAction(UIAlertAction(title: "Huỷ", style: .default, handler: { (action) in
+            //
+        }))
+        alert.popoverPresentationController?.barButtonItem = self.navigationItem.rightBarButtonItem
+        alert.popoverPresentationController?.sourceView = self.view
+        alert.popoverPresentationController?.sourceRect = self.view.bounds
+        self.present(alert, animated: true, completion: nil)
+    }
+    
+}

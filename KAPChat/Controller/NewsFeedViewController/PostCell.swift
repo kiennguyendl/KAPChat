@@ -1,0 +1,92 @@
+//
+//  PostCell.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 07/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Foundation
+import Firebase
+//Photo cell delegate
+protocol PhotoPostCellDelegate: class{
+    func tapOnPhoto(cell: PostCell, tap: UITapGestureRecognizer)
+    func tapOnLikeImage(cell:PostCell,tap:UITapGestureRecognizer)
+    func tapOnLinkUrl(cell:PostCell,tap:UITapGestureRecognizer)
+    func tapOnNameLablePostCell(cell:PostCell,tap:UITapGestureRecognizer)
+}
+
+class PostCell: UITableViewCell {
+
+    @IBOutlet weak var likeLbl: UILabel!
+    @IBOutlet weak var caption: UITextView!
+    @IBOutlet weak var postImg: UIImageView!
+    @IBOutlet weak var likeImg: UIImageView!
+    @IBOutlet weak var usernameLbl: UILabel!
+    @IBOutlet weak var profileImg: UIImageView!
+    @IBOutlet weak var timeLbl: UILabel!
+    
+    weak var delegatePhotoPostCell:PhotoPostCellDelegate?
+    
+    var likesRef: FIRDatabaseReference!
+    let currentUserId = DataService.ds.currentuserID
+    
+    var post: Post!
+    
+    
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        let tapPhoto: UITapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(tapOnPhoto(tap:)))
+        tapPhoto.numberOfTapsRequired = 1
+        self.postImg.addGestureRecognizer(tapPhoto)
+        postImg.isUserInteractionEnabled = true
+        
+        let tapLike = UITapGestureRecognizer(target: self, action: #selector(tapOnLikeImage(tap:)))
+        tapLike.numberOfTapsRequired = 1
+        likeImg.addGestureRecognizer(tapLike)
+        likeImg.isUserInteractionEnabled = true
+        
+        let tapLink = UITapGestureRecognizer(target: self, action: #selector(tapOnLinkUrl(tap:)))
+        tapLink.numberOfTapsRequired = 1
+        caption.addGestureRecognizer(tapLink)
+        caption.isUserInteractionEnabled = true
+        
+        profileImg.layer.cornerRadius = 0.5*profileImg.layer.bounds.size.width
+        profileImg.layer.masksToBounds = true
+        
+//        postImg.layer.cornerRadius = 5
+//        postImg.layer.masksToBounds = true
+        
+        let contentSize = caption.sizeThatFits(caption.bounds.size)
+        var frame = caption.frame
+        frame.size.height = contentSize.height
+        caption.frame = frame
+        // Initialization code
+        
+        let tapName = UITapGestureRecognizer(target: self, action: #selector(tapOnNameLablePostCell(tap:)))
+        tapName.numberOfTapsRequired = 1
+        usernameLbl.addGestureRecognizer(tapName)
+        usernameLbl.isUserInteractionEnabled = true
+        
+    }
+    override func setSelected(_ selected: Bool, animated: Bool) {
+
+    }
+    func tapOnPhoto(tap: UITapGestureRecognizer){
+        delegatePhotoPostCell?.tapOnPhoto(cell: self, tap: tap)
+       
+    }
+    func tapOnLikeImage(tap: UITapGestureRecognizer){
+        delegatePhotoPostCell?.tapOnLikeImage(cell: self, tap: tap)
+    }
+    func tapOnLinkUrl(tap: UITapGestureRecognizer){
+        delegatePhotoPostCell?.tapOnLinkUrl(cell: self, tap: tap)
+    }
+    
+    func tapOnNameLablePostCell(tap: UITapGestureRecognizer) {
+        delegatePhotoPostCell?.tapOnNameLablePostCell(cell: self, tap: tap)
+    }
+    
+}
+

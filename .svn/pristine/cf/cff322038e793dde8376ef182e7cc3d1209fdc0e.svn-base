@@ -1,0 +1,1 @@
+link ../../../FirebaseInstanceID/Sources/FIRInstanceID.h

@@ -1,0 +1,117 @@
+//
+//  RequestOfFriendViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/13/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+class RequestOfFriendViewController: BaseAuthenticatedViewController {
+    @IBOutlet weak var tableView: UITableView!
+    var listUserRequest: [User] = []
+    let avtSize = CGSize(width: 40, height: 40)
+    var cache = NSCache<AnyObject,AnyObject>()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        tableView.delegate = self
+        tableView.dataSource = self
+        tableView.rowHeight = UITableViewAutomaticDimension
+        tableView.estimatedRowHeight = 100
+        tableView.register(UINib(nibName: "UserTableViewCell", bundle: nil), forCellReuseIdentifier: "Cell")
+        navigationItem.title = "Request Friend"
+        
+        //get list request from users
+        listenRequestFromFriend()
+        
+    }
+    
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        
+    }
+    
+    
+    func listenRequestFromFriend() {
+        self.fireBaseRef.database.reference().child("Users").child(currentuserID).child("RequestFriend").observe(.value, with: { (snap: FIRDataSnapshot) in
+            if let listRequestSnapshot:[FIRDataSnapshot] = snap.children.allObjects as? [FIRDataSnapshot]{
+                if listRequestSnapshot.count > 0{
+                    for requestSnapshot in listRequestSnapshot{
+                        //get user info through uid
+                        self.fireBaseRef.database.reference().child("Users").child(requestSnapshot.key).observeSingleEvent(of: .value, with: { (snap: FIRDataSnapshot) in
+                            guard let userDict = snap.value as? [String:AnyObject] else { return }
+                            if let userRequest = User(uid: snap.key, JsonData: userDict){
+                                self.listUserRequest.append(userRequest)
+                                self.tableView.reloadData()
+                            }
+                        })
+                    }
+                }
+            }
+        })
+    }
+    
+}
+
+extension RequestOfFriendViewController : UITableViewDelegate, UITableViewDataSource{
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return listUserRequest.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath) as! UserTableViewCell
+        let user = listUserRequest[indexPath.row]
+        cell.lblDisplatName.text = user.displayName
+        cell.delegate = self
+        if let avtDownloaded = cache.object(forKey: user.avatarUrl as AnyObject) as? UIImage {
+            cell.imgAvt.image = avtDownloaded
+        } else {
+            //Chứa cache thì lấy hình online và resize , Radius hình
+            cell.imgAvt.image = UIImage.imageWithColor(UIColor.lightGray, size: avtSize).createRadius(newSize: avtSize, radius: 22, byRoundingCorners: .allCorners)
+            DispatchQueue.global().async {
+                if let url = URL(string: user.avatarUrl) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: self.avtSize).createRadius(newSize: self.avtSize, radius: 22, byRoundingCorners: .allCorners)
+                                //Cache hình vào ram
+                                self.cache.setObject(resultImg, forKey: user.avatarUrl as AnyObject)
+                                cell.imgAvt.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return cell
+    }
+    
+}
+
+extension RequestOfFriendViewController: RequestDelegate{
+    
+    //accept request friend
+    func tapOnButtonAccept(cell: UserTableViewCell) {
+        let userRequest = listUserRequest[cell.btnAccept.tag]
+        self.fireBaseRef.child("Users").child(currentuserID).child("listFriend").child(userRequest.id).setValue(true)
+        self.fireBaseRef.child("Users").child(currentuserID).child("RequestFriend").child(userRequest.id).removeValue()
+        self.fireBaseRef.child("Users").child(userRequest.id).child("listFriend").child(currentuserID).setValue(true)
+        listUserRequest.removeAll()
+        listenRequestFromFriend()
+        tableView.reloadData()
+    }
+    
+    //cancel request friend
+    func tapOnButtonCancel(cell: UserTableViewCell) {
+        let userRequest = listUserRequest[cell.btnCancel.tag]
+        self.fireBaseRef.child("Users").child(currentuserID).child("RequestFriend").child(userRequest.id).setValue(false)
+        listUserRequest.removeAll()
+        listenRequestFromFriend()
+        tableView.reloadData()
+    }
+    
+    
+}
+

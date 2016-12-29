@@ -1,0 +1,67 @@
+//
+//  BaseViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class BaseViewController: UIViewController {
+
+    var hideKeyboardTap:UITapGestureRecognizer!
+    var keyboardHidden = true
+    lazy var fireBaseRef:FIRDatabaseReference = FIRDatabase.database().reference()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        print(fireBaseRef)
+        // Do any additional setup after loading the view.
+        
+    }
+
+    func handleLogout() {
+        
+        do {
+            try FIRAuth.auth()?.signOut()
+        } catch let logoutError {
+            print(logoutError)
+        }
+    }
+    
+    func setStatusOnlineOrOffline(isLogin: Bool, isDisconnect: Bool) {
+        if let auth = FIRAuth.auth() {
+            
+            guard let curUser = auth.currentUser else {
+                return
+            }
+            
+            let uid = curUser.uid
+            
+            self.fireBaseRef.child("Users").child(uid).observeSingleEvent(of: .value, with: { [weak self] (snap) in
+                
+                guard let strongSelf = self else { return }
+                
+                if (snap.value is NSNull) {
+                    return
+                }
+                
+                guard let userInfo = snap.value as? [String:AnyObject] else {
+                    return
+                }
+                
+                guard let realUser = User(uid: uid, JsonData: userInfo) else {
+                    return
+                }
+                
+                
+                strongSelf.fireBaseRef.child("Users").child(realUser.id).child("isOnline").setValue(isLogin)
+                strongSelf.fireBaseRef.child("Users").child(realUser.id).child("lastLogin").setValue("\(NSDate().timeIntervalSince1970)")
+                strongSelf.fireBaseRef.child("Users").child(realUser.id).child("isOnline").onDisconnectSetValue(isDisconnect)
+                
+            })
+        }
+    }
+
+}

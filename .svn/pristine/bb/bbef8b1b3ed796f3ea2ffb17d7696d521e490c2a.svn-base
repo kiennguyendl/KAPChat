@@ -1,0 +1,49 @@
+//
+//  HomeViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/9/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class HomeViewController: UITabBarController{
+    var vc : ContactViewController!
+    var vc2: FeedViewController!
+    var vc3: ConversationsViewController!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+//        let contactController = UIViewController()
+//        let naController = UINavigationController(rootViewController: contactController)
+//        naController.tabBarItem.title = "Contact"
+//        naController.tabBarItem.image = UIImage(named: "contacts")
+        
+        viewControllers = [createDummyNavControllerWithTitle("Contact", imageName: "contacts"), createDummyNavControllerWithTitle("Groups", imageName: "groups"), createDummyNavControllerWithTitle("People", imageName: "people"), createDummyNavControllerWithTitle("Settings", imageName: "settings")]
+        
+        vc = ContactViewController()
+//        vc.back
+        let tabbBarItem1 = UITabBarItem(title: "contact", image: UIImage(named: ""), tag: 1)
+        vc.tabBarItem = tabbBarItem1
+        
+        
+        vc2 = FeedViewController()
+        let tabbBarItem2 = UITabBarItem(title: "news feed", image: UIImage(named: ""), tag: 0)
+        vc2.tabBarItem = tabbBarItem2
+        
+        vc3 = ConversationsViewController()
+        let tabbBarItem3 = UITabBarItem(title: "conversations", image: UIImage(named: ""), tag: 0)
+        vc3.tabBarItem = tabbBarItem3
+        
+        self.viewControllers = [vc, vc2, vc3]
+    }
+    
+    fileprivate func createDummyNavControllerWithTitle(_ title: String, imageName: String) -> UINavigationController {
+        let viewController = UIViewController()
+        let navController = UINavigationController(rootViewController: viewController)
+        navController.tabBarItem.title = title
+        navController.tabBarItem.image = UIImage(named: imageName)
+        return navController
+    }
+}

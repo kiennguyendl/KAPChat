@@ -1,0 +1,28 @@
+//
+//  WebViewController.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 21/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class WebViewController: UIViewController {
+    @IBOutlet weak var webView: UIWebView!
+     var urlString:String?
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let url = NSURL(string: urlString!)
+        let request = URLRequest(url: url! as URL)
+        webView.loadRequest(request)
+        // Do any additional setup after loading the view.
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+
+}

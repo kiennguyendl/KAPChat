@@ -1,0 +1,13 @@
+//
+//  Identifier.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+enum Identifier: String{
+    case HomeScreen = "HomeScreen"
+}

@@ -1,0 +1,71 @@
+//
+//  PostCell.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 07/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Foundation
+import Firebase
+
+class PostCell: UITableViewCell {
+
+    
+    @IBOutlet weak var likeLbl: UILabel!
+    @IBOutlet weak var caption: UITextView!
+    @IBOutlet weak var postImg: UIImageView!
+    @IBOutlet weak var likeImg: UIImageView!
+    @IBOutlet weak var usernameLbl: UILabel!
+    @IBOutlet weak var profileImg: UIImageView!
+    @IBOutlet weak var timeLbl: UILabel!
+    
+    var post: Post!
+    var likesRef: FIRDatabaseReference!
+    
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        profileImg.layer.cornerRadius = 0.5*profileImg.layer.bounds.size.width
+        profileImg.layer.masksToBounds = true
+        
+        postImg.layer.cornerRadius = 5
+        postImg.layer.masksToBounds = true
+        
+        let contentSize = caption.sizeThatFits(caption.bounds.size)
+        var frame = caption.frame
+        frame.size.height = contentSize.height
+        caption.frame = frame
+        // Initialization code
+    }
+        override func setSelected(_ selected: Bool, animated: Bool) {
+
+    }
+//    func configureCell(post: Post, img: UIImage? = nil) {
+//        self.post = post
+//        //likesRef = DataService.ds.REF_USER_CURRENT.child("likes").child(post.postKey)
+//        
+//        self.caption.text = post.caption
+//        self.likeLbl.text = "\(post.likes)"
+//        
+//        if img != nil {
+//            self.postImg.image = img
+//        } else {
+//            let ref = FIRStorage.storage().reference(forURL: post.imageUrl!)
+//            ref.data(withMaxSize: 2 * 1024 * 1024, completion: { (data, error) in
+//                if error != nil {
+//                    print("JESS: Unable to download image from Firebase storage")
+//                } else {
+//                    print("JESS: Image downloaded from Firebase storage")
+//                    if let imgData = data {
+//                        if let img = UIImage(data: imgData) {
+//                            self.postImg.image = img
+//                            FeedViewController.cache.setObject(img, forKey: NSString(string:post.imageUrl!))
+//                        }
+//                    }
+//                }
+//            })
+//        }
+//    }
+
+}

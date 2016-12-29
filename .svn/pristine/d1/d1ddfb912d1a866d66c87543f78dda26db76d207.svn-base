@@ -1,0 +1,23 @@
+//
+//  Post.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 08/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class Post {
+    var caption: String?
+    var imageUrl: String?
+    var likes: Int?
+
+    
+    init(caption: String, imageUrl: String, likes: Int) {
+        self.caption = caption
+        self.imageUrl = imageUrl
+        self.likes = likes
+    }
+}
+

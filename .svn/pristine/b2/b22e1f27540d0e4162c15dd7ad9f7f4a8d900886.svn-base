@@ -1,0 +1,34 @@
+//
+//  LoginOrRegisterViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class LoginOrRegisterViewController: BaseNonAuthenticatedViewController {
+
+    @IBOutlet weak var imgViewBackGround: UIImageView!
+    
+    @IBOutlet weak var btnDangNhap: UIButton!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        btnDangNhap.layer.masksToBounds = true
+        btnDangNhap.layer.cornerRadius = 10
+        
+        // Do any additional setup after loading the view.
+    }
+    
+
+    @IBAction func goToLoginScreen(_ sender: Any) {
+        let vc = LoginViewController()
+        self.present(vc, animated: true, completion: nil)
+    }
+    
+    @IBAction func goToRegisterScreen(_ sender: Any) {
+        let vc = RegisterViewController()
+        self.present(vc, animated: true, completion: nil)
+    }
+}

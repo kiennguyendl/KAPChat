@@ -1,0 +1,215 @@
+//
+//  UserinfoViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+class UserinfoViewController: BaseAuthenticatedViewController,UIImagePickerControllerDelegate,UINavigationControllerDelegate {
+
+    
+    @IBOutlet weak var imgAvatar: UIImageView!
+    @IBOutlet weak var textDisplayName: UITextField!
+    @IBOutlet weak var textStatus: UITextView!
+    @IBOutlet weak var btnCapNhapStatus: UIButton!
+    @IBOutlet weak var btnLoimoiketban: UIButton!
+    @IBOutlet weak var btnLogout: UIButton!
+    
+    var imagePicker = UIImagePickerController()
+    var currentUserInfo: User!
+    var cache = NSCache<AnyObject,AnyObject>()
+    
+    var storage: FIRStorage!
+    
+    let newSize = CGSize(width: 100 , height: 200)
+    let avtSize = CGSize(width: 40, height: 40)
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        //self.navigationItem.rightBarButtonItem?.action
+        btnCapNhapStatus.layer.masksToBounds = true
+        btnCapNhapStatus.layer.cornerRadius = 10
+        
+        btnLoimoiketban.layer.masksToBounds = true
+        btnLoimoiketban.layer.cornerRadius = 10
+        
+        btnLogout.layer.masksToBounds = true
+        btnLogout.layer.cornerRadius = 10
+        
+        imgAvatar.layer.cornerRadius = 0.5 * imgAvatar.layer.bounds.size.width
+        imgAvatar.layer.masksToBounds = true
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.showDialog))
+        imgAvatar.addGestureRecognizer(tapGesture)
+        imgAvatar.isUserInteractionEnabled = true
+        
+        getCurrentUserInfo()
+    }
+    
+    
+    func getCurrentUserInfo(){
+        //let currentUserId = self.currentuserID
+        self.fireBaseRef.child("Users").child(currentuserID).observeSingleEvent(of: .value, with: {(snap) in
+            
+            guard let userDict = snap.value as? [String:AnyObject] else { return }
+            
+            if let user = User(uid: snap.key, JsonData: userDict) {
+                self.currentUserInfo = user
+                self.textDisplayName.text = self.currentUserInfo.displayName
+                if self.currentUserInfo.status == ""{
+                    self.textStatus.text = "Bạn đang nghĩ gì?"
+                }else{
+                    self.textStatus.text = self.currentUserInfo.status
+                }
+                self.loadAvatar()
+            }
+        })
+    }
+    
+    //log out account
+    @IBAction func btnLogout(_ sender: Any) {
+        self.startLoading()
+        self.setStatusOnlineOrOffline(isLogin: false, isDisconnect: true)
+        self.handleLogout()
+        UserDefaults.standard.removeObject(forKey: "userInfo")
+        self.stopLoading()
+        self.navigationController?.popToRootViewController(animated: true)
+    }
+    @IBAction func btnRequestFriend(_ sender: Any) {
+        let vc = RequestOfFriendViewController()
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    
+    @IBAction func btnUpdateStatus(_ sender: Any) {
+        
+        let alert = UIAlertController(title: "", message: "Thay đổi trạng thái?", preferredStyle: UIAlertControllerStyle.alert)
+        alert.addAction(UIAlertAction(title: "Lưu", style: UIAlertActionStyle.default, handler: {(action) in
+            if self.textStatus.text != "", self.textStatus.text != "Bạn đang nghĩ gì?" {
+                self.fireBaseRef.child("Users").child(self.currentuserID).child("status").setValue(self.textStatus.text)
+                self.currentUserInfo.status = self.textStatus.text
+            }else{
+                if self.currentUserInfo.status == ""{
+                    self.textStatus.text = "Bạn đang nghĩ gì?"
+                }else{
+                    self.textStatus.text = self.currentUserInfo.status
+                }
+            }
+            self.dismiss(animated: true, completion: nil)
+        }))
+        
+        alert.addAction(UIAlertAction(title: "Huỷ", style: UIAlertActionStyle.default, handler: {(action) in
+            if self.currentUserInfo.status == ""{
+                self.textStatus.text = "Bạn đang nghĩ gì?"
+            }else{
+                self.textStatus.text = self.currentUserInfo.status
+            }
+            self.dismiss(animated: true, completion: nil)
+        }))
+        self.present(alert, animated: true, completion: nil)
+
+        
+    }
+    
+    //show dialog for user change avatar
+    func showDialog() {
+        let alert = UIAlertController(title: "", message: nil, preferredStyle: .actionSheet)
+        //hiển thị tuỳ chọn cho người dùng nếu chưa đăng nhập hoặc chưa đăng ký
+        alert.addAction(UIAlertAction(title: "Đổi hình đại diện", style: .default, handler: { (action) in
+            self.imagePicker.delegate = self
+            self.imagePicker.allowsEditing = true
+            self.imagePicker.sourceType = .photoLibrary
+            
+            self.present(self.imagePicker, animated: true, completion: nil)
+            
+        }))
+        
+        alert.addAction(UIAlertAction(title: "Tới trang cá nhân", style: .default, handler: { (action) in
+            let vc = TimeLineUserViewController()
+            vc.uid = self.currentuserID
+            self.navigationController?.pushViewController(vc, animated: true)
+            
+        }))
+        
+        alert.addAction(UIAlertAction(title: "Huỷ", style: .default, handler: { (action) in
+            //
+        }))
+        alert.popoverPresentationController?.barButtonItem = self.navigationItem.rightBarButtonItem
+        alert.popoverPresentationController?.sourceView = self.view
+        alert.popoverPresentationController?.sourceRect = self.view.bounds
+        self.present(alert, animated: true, completion: nil)
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        if let pickedImage = info[UIImagePickerControllerOriginalImage] as? UIImage {
+            imgAvatar.contentMode = .scaleAspectFit
+            imgAvatar.image = pickedImage
+            if let imgData = UIImageJPEGRepresentation(pickedImage, 0.1){
+                let imgPath = NSUUID().uuidString
+                uploadImageToFirebase(data: imgData as NSData, withPath: imgPath, completed: {(url) in
+                    self.fireBaseRef.child("Users").child(self.currentuserID).child("avatarUrl").setValue(url)
+                    self.currentUserInfo.avatarUrl = url
+                    self.loadAvatar()
+                })
+            }
+        }
+        
+        dismiss(animated: true, completion: nil)
+    }
+    
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        dismiss(animated: true, completion: nil)
+    }
+    
+    func uploadImageToFirebase(data:NSData, withPath: String, completed: @escaping(String) -> Void)
+    {
+        let storageRef = FIRStorage.storage().reference(withPath: "User/" + "\(withPath)")
+        let uploadMetadata = FIRStorageMetadata()
+        uploadMetadata.contentType = "image/jpeg"
+        storageRef.put(data as Data, metadata: uploadMetadata) { (metadata,error) in
+            if ( error != nil)
+            {
+                print("Error: Unable to upload image to Firebase storage")
+            }else{
+                print("Message: Successfully uploaded image to Firebase storage")
+                print("Here's your download URL: \(metadata?.downloadURL())")
+                let downloadURL = metadata?.downloadURL()?.absoluteString
+                if let url = downloadURL {
+                    completed(url)
+                }
+                
+            }
+        }
+    }
+
+    //load avatar
+    func loadAvatar() {
+        //set size for img
+        imgAvatar.image = UIImage.imageWithColor(UIColor.lightGray, size: avtSize).createRadius(newSize: avtSize, radius: 22, byRoundingCorners: .allCorners)
+        //get image from ram if cached
+        if let avtDownloaded = cache.object(forKey: self.currentUserInfo.avatarUrl as AnyObject) as? UIImage {
+            imgAvatar.image = avtDownloaded
+        } else {
+            //if img not existed in ram. we will be download from firebase
+            imgAvatar.image = UIImage.imageWithColor(UIColor.lightGray, size: avtSize).createRadius(newSize: avtSize, radius: 22, byRoundingCorners: .allCorners)
+            DispatchQueue.global().async {
+                if let url = URL(string: self.currentUserInfo.avatarUrl) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: self.avtSize).createRadius(newSize: self.avtSize, radius: 22, byRoundingCorners: .allCorners)
+                                //Cache image to ram
+                                self.cache.setObject(resultImg, forKey: self.currentUserInfo.avatarUrl as AnyObject)
+                                self.imgAvatar.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+    }
+    
+}

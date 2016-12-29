@@ -1,0 +1,109 @@
+//
+//  BaseAuthenticatedViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+
+class BaseAuthenticatedViewController: BaseViewController{
+    
+    let storageRef = FIRStorage.storage().reference()
+    
+    var currentuserID:String {
+        return FIRAuth.auth()!.currentUser!.uid
+        
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        if let auth = FIRAuth.auth() {
+            
+            guard let curUser = auth.currentUser else {
+                return
+            }
+            
+            let uid = curUser.uid
+            
+            self.fireBaseRef.child("Users").child(uid).observeSingleEvent(of: .value, with: { [weak self] (snap) in
+                
+                guard let strongSelf = self else { return }
+                
+                if (snap.value is NSNull) {
+                    return
+                }
+                
+                guard let userInfo = snap.value as? [String:AnyObject] else {
+                    return
+                }
+                
+                guard let realUser = User(uid: uid, JsonData: userInfo) else {
+                    return
+                }
+                
+                
+                strongSelf.fireBaseRef.child("Users").child(realUser.id).child("isOnline").setValue(true)
+                strongSelf.fireBaseRef.child("Users").child(realUser.id).child("lastLogin").setValue("\(NSDate().timeIntervalSince1970)")
+                strongSelf.fireBaseRef.child("Users").child(realUser.id).child("isOnline").onDisconnectSetValue(false)
+                
+            })
+        }
+    }
+    
+    func createNotificationCenter() {
+        NotificationCenter.default.addObserver(self, selector: #selector(willShowKeyBoard(notification:) ), name:NSNotification.Name.UIKeyboardWillShow, object: nil)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(willHideKeyBoard(notification:)), name:NSNotification.Name.UIKeyboardWillHide, object: nil)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(LoginViewController.tapScreen), name: NSNotification.Name.init("closeKeyboard"), object: nil)
+    }
+    
+    
+    func tapScreen() {
+        if !keyboardHidden {
+            self.view.endEditing(true)
+        }
+    }
+    
+    // Remove Observer
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    // MARK: Keyboard handler
+    
+    func willShowKeyBoard(notification : NSNotification){
+        keyboardHidden = false
+        let userInfo: NSDictionary! = notification.userInfo as NSDictionary!
+        
+        var duration : TimeInterval = 0
+        
+        duration = userInfo[UIKeyboardAnimationDurationUserInfoKey] as! TimeInterval
+        let keyboardFrame = (userInfo.object(forKey: UIKeyboardFrameEndUserInfoKey) as! NSValue).cgRectValue
+        
+        handleKeyboardWillShow(duration: duration,keyBoardRect: keyboardFrame)
+    }
+    
+    func willHideKeyBoard(notification : NSNotification){
+        keyboardHidden = true
+        var userInfo: NSDictionary!
+        userInfo = notification.userInfo as NSDictionary!
+        
+        var duration : TimeInterval = 0
+        duration = userInfo[UIKeyboardAnimationDurationUserInfoKey] as! TimeInterval
+        
+        let keyboardFrame = (userInfo.object(forKey: UIKeyboardFrameEndUserInfoKey) as! NSValue).cgRectValue
+        
+        handleKeyboardWillHide(duration: duration, keyBoardRect: keyboardFrame)
+    }
+    
+    // Override in sub class
+    
+    func handleKeyboardWillShow(duration: TimeInterval, keyBoardRect: CGRect) {}
+    func handleKeyboardWillHide(duration: TimeInterval, keyBoardRect: CGRect) {}
+    
+}

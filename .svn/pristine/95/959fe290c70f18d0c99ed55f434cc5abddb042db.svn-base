@@ -1,0 +1,66 @@
+//
+//  HomeViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/9/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class HomeViewController: UITabBarController{
+    var vc : ContactViewController!
+    var vc2: FeedViewController!
+    var vc3: ConversationsViewController!
+    var vc4: UserinfoViewController!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        let size = CGSize(width: 32.0, height: 32.0)
+        
+        vc = ContactViewController()
+        let imgContact = resizeImage(image: UIImage(named: "empty-heart")!, targetSize: size)
+        let tabbBarItem1 = UITabBarItem(title: "Contact", image: imgContact, tag: 1)
+        vc.tabBarItem = tabbBarItem1
+        
+        
+        vc2 = FeedViewController()
+        let tabbBarItem2 = UITabBarItem(title: "Feed", image: imgContact, tag: 0)
+        vc2.tabBarItem = tabbBarItem2
+        
+        vc3 = ConversationsViewController()
+        let tabbBarItem3 = UITabBarItem(title: "Conversation", image: imgContact, tag: 2)
+        vc3.tabBarItem = tabbBarItem3
+
+        vc4 = UserinfoViewController()
+        let tabbBarItem4 = UITabBarItem(title: "Info", image: imgContact, tag: 3)
+        vc4.tabBarItem = tabbBarItem4
+        self.viewControllers = [vc, vc2, vc3, vc4]
+    }
+    
+    func resizeImage(image: UIImage, targetSize: CGSize) -> UIImage {
+        let size = image.size
+        
+        let widthRatio  = targetSize.width  / image.size.width
+        let heightRatio = targetSize.height / image.size.height
+        
+        // Figure out what our orientation is, and use that to form the rectangle
+        var newSize: CGSize
+        if(widthRatio > heightRatio) {
+            newSize = CGSize(width: size.width * heightRatio, height: size.height * heightRatio)
+        } else {
+            newSize = CGSize(width: size.width * widthRatio,  height: size.height * widthRatio)
+        }
+        
+        // This is the rect that we've calculated out and this is what is actually used below
+        let rect = CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height)
+        
+        // Actually do the resizing to the rect using the ImageContext stuff
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        image.draw(in: rect)
+        let newImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return newImage!
+    }
+}

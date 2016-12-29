@@ -1,0 +1,29 @@
+//
+//  TimeLineUserViewController.swift
+//  KAPChat
+//
+//  Created by Kien Nguyen Dang on 12/13/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class TimeLineUserViewController: BaseAuthenticatedViewController {
+
+    var uid: String!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        // Do any additional setup after loading the view.
+    }
+
+    @IBAction func btnAddFriend(_ sender: Any) {
+        print(uid)
+        sendRequestToUser(uid)
+    }
+    
+    func sendRequestToUser(_ userID: String) {
+//        USER_REF.child(userID).child("requests").child(CURRENT_USER_ID).setValue(true)
+        self.fireBaseRef.database.reference().child("Users").child(userID).child("RequestFriend").child(self.currentuserID).setValue(true)
+    }
+}

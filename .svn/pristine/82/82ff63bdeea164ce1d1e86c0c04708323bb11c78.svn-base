@@ -1,0 +1,215 @@
+//
+//  FeedViewController.swift
+//  KAPChat
+//
+//  Created by PhatVQ on 07/12/2016.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Firebase
+@IBDesignable
+
+class FeedViewController: BaseAuthenticatedViewController,UIImagePickerControllerDelegate,UINavigationControllerDelegate {
+    
+    var storage: FIRStorage!
+    var cache = NSCache<AnyObject,AnyObject>()
+    var cacheImage = [Int: UIImage]()
+    @IBOutlet weak var captionField: UITextField!
+    @IBOutlet weak var imageAdd: UIImageView!
+    @IBOutlet weak var tableView: UITableView!
+    @IBOutlet weak var postBtn: UIButton!
+    
+    var posts = [Post]()
+    
+    static var cache = NSCache<NSString, AnyObject>()
+    var imagePicker = UIImagePickerController()
+    //var imagePicker: UIImagePickerController!
+    var imageSelected = false
+    
+ 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+                
+        getPost()
+        
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.register(UINib(nibName: "PostCell", bundle: nil), forCellReuseIdentifier: "Cell")
+        tableView.rowHeight = UITableViewAutomaticDimension
+        tableView.estimatedRowHeight = 500
+        
+        imageAdd.layer.cornerRadius = 0.5*imageAdd.layer.bounds.size.width
+        imageAdd.layer.masksToBounds = true
+        
+        postBtn.layer.cornerRadius = 0.5*imageAdd.layer.bounds.size.width
+        postBtn.layer.masksToBounds = true
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.addImageTapped(_:)))
+        tap.numberOfTapsRequired = 1
+        imageAdd.addGestureRecognizer(tap)
+        imageAdd.isUserInteractionEnabled = true
+        
+        let tapPostBtn = UITapGestureRecognizer(target: self, action: #selector(FeedViewController.postBtnTapped(_:)))
+        postBtn.addGestureRecognizer(tapPostBtn)
+        postBtn.isUserInteractionEnabled = true
+    }
+    
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    func addImageTapped(_ sender: UITapGestureRecognizer){
+        imagePicker.allowsEditing = true
+        imagePicker.delegate = self
+        imagePicker.sourceType = .photoLibrary
+        present(imagePicker, animated: true, completion: nil)
+    }
+
+    @IBAction func postBtnTapped(_ sender: AnyObject) {
+        guard let caption = captionField.text, caption != "" else {
+            print("Error: Caption must be entered")
+            return
+        }
+        guard let img = imageAdd.image, imageSelected == true else {
+            print("Error: An image must be selected")
+            return
+        }
+        if let imgData = UIImageJPEGRepresentation(img,0.1) {
+            let imgUid = NSUUID().uuidString
+            uploadImageToFirebase(data: imgData as NSData, withPath: imgUid)
+            
+        }
+//        let alert = UIAlertView(title: "♥️ ♥️ Wow ♥️ ♥️",
+//                                message: "Your status has been updated to your feed!",
+//                                delegate: nil,
+//                                cancelButtonTitle: "Ok")
+//        alert.show()
+
+    }
+    func uploadImageToFirebase(data:NSData, withPath: String)
+    {
+        let storageRef = FIRStorage.storage().reference(withPath: "Image/" + "\(withPath)")
+        let uploadMetadata = FIRStorageMetadata()
+        uploadMetadata.contentType = "image/jpeg"
+        storageRef.put(data as Data, metadata: uploadMetadata) { (metadata,error) in
+        if ( error != nil)
+        {
+            print("Error: Unable to upload image to Firebase storage")
+        }else{
+            print("Message: Successfully uploaded image to Firebase storage")
+            print("Here's your download URL: \(metadata?.downloadURL())")
+            let downloadURL = metadata?.downloadURL()?.absoluteString
+            if let url = downloadURL {
+                self.postToFirebase(imgUrl: url)
+                }
+
+            }
+        }
+    }
+    
+    func getPost()
+    {
+        self.fireBaseRef.child("Post").observe(.value, with: { (snapshot) in
+            if let snapshot = snapshot.children.allObjects as? [FIRDataSnapshot] {
+                for item in snapshot {
+                    print("SNAP: \(item)")
+                    if let postDict = item.value as? Dictionary<String, AnyObject>{
+                        let key = item.key
+                        let post = Post(postID: key, postData: postDict)
+                        self.posts.append(post)
+                    }
+                }
+            }
+            self.tableView.reloadData()
+        })
+
+    }
+    
+    func postToFirebase(imgUrl: String) {
+        let post: Dictionary<String, AnyObject> = [
+            "caption": captionField.text! as AnyObject,
+            "imageUrl": imgUrl as AnyObject,
+            "time": "\(NSDate().timeIntervalSince1970)" as AnyObject,
+            "likes": 0 as AnyObject
+        ]
+        
+        let firebasePost = self.fireBaseRef.child("Post").childByAutoId()
+        firebasePost.setValue(post)
+        
+        captionField.text = ""
+        imageSelected = false
+        imageAdd.image = UIImage(named: "add-image")
+        
+        tableView.reloadData()
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        if let pickedImage = info[UIImagePickerControllerOriginalImage] as? UIImage {
+            let pickedImageUrl = info[UIImagePickerControllerReferenceURL] as! NSURL
+            
+            imageAdd.contentMode = .scaleAspectFit
+            imageAdd.image = pickedImage
+            imageSelected = true
+            print("\(pickedImageUrl)")
+        }else{
+             print("Error: A valid image wasn't selected")        }
+        
+        dismiss(animated: true, completion: nil)
+    }
+    
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        dismiss(animated: true)
+    }
+    
+}
+
+
+extension FeedViewController:UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return posts.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell") as? PostCell
+        let post = posts[indexPath.row]
+        cell?.caption.text = post.caption
+        cell?.likeLbl.text = String(post.likes)
+        
+        if cacheImage[indexPath.row] != nil {
+            cell?.postImg.image = cacheImage[indexPath.row]
+        }
+        else {
+            DispatchQueue.global().async {
+                if let url = NSURL(string: post.imageUrl!){
+                    
+                    if let data = NSData(contentsOf: url as URL) {
+                        DispatchQueue.main.async { [weak self] in
+                            guard let strongself = self else { return }
+                            let img = UIImage(data: data as Data)
+                            
+                            let newsize = CGSize(width: 100, height: 250)
+                            let resultImg = img?.scaleImage(newSize: newsize)
+                            cell?.postImg.image = resultImg
+                            strongself.cacheImage[indexPath.row] = resultImg
+                        }
+                        
+                    }
+                }
+            }
+        }
+        return cell!
+    }
+}
+
+
+extension FeedViewController:UITextFieldDelegate{
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        textField.text = ""
+    }
+}
+

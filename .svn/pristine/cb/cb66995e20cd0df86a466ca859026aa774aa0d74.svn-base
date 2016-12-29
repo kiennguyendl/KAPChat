@@ -1,0 +1,54 @@
+//
+//  UIImageExtension.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/11/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import Foundation
+import UIKit
+extension UIImage{
+    func createRadius(newSize:CGSize, radius: CGFloat, byRoundingCorners: UIRectCorner?) -> UIImage {
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 0.0)
+        
+        let imgRect = CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height)
+        
+        if let roundingCorners = byRoundingCorners {
+            
+            UIBezierPath(roundedRect: imgRect, byRoundingCorners: roundingCorners, cornerRadii: CGSize(width: radius, height: radius)).addClip()
+            
+        } else {
+            UIBezierPath(roundedRect: imgRect, cornerRadius: radius).addClip()
+        }
+        self .draw(in: imgRect)
+        
+        let result = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return result!
+    }
+    static func imageWithColor(_ color: UIColor, size: CGSize) -> UIImage {
+        let rect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+        
+        UIGraphicsBeginImageContextWithOptions(size, false, 0)
+        color.setFill()
+        UIRectFill(rect)
+        let image: UIImage = UIGraphicsGetImageFromCurrentImageContext()!
+        UIGraphicsEndImageContext()
+        return image
+        
+    }
+    func scaleImage(newSize:CGSize) -> UIImage {
+        
+        // Core Graphic
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 0.0)
+        self.draw(in: CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height))
+        let result:UIImage = UIGraphicsGetImageFromCurrentImageContext()!
+        UIGraphicsEndImageContext()
+        
+        return result
+    }
+}

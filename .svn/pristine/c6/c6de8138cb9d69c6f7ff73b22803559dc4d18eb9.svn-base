@@ -1,0 +1,105 @@
+//
+//  CreateChatViewController.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/21/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class CreateChatViewController: BaseAuthenticatedViewController {
+
+    @IBOutlet weak var navigationBar: UINavigationBar!
+    @IBOutlet weak var tableContact: UITableView!
+    var listContact = [User]()
+    var userCurrent:User!
+    var userSelected = [User]()
+    var cache = NSCache<AnyObject,AnyObject>()
+    var searchBar:UISearchBar!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        self.startLoading()
+        tableContact.register(UINib(nibName: "CreateChatTableViewCell", bundle: nil), forCellReuseIdentifier: "cell_contact")
+        tableContact.rowHeight = UITableViewAutomaticDimension
+        tableContact.estimatedRowHeight = 100
+        tableContact.delegate = self
+        tableContact.dataSource = self
+        self.listContact = DatabaseManager.shareInstance.arrUserFriend
+        self.userCurrent = DatabaseManager.shareInstance.userLogging
+        self.stopLoading()
+        // Do any additional setup after loading the view.
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    
+    @IBAction func cancelTouch(_ sender: Any) {
+        self.dismiss(animated: true, completion: nil)
+    }
+
+    @IBAction func doneTouch(_ sender: Any) {
+        
+    }
+    /*
+    // MARK: - Navigation
+
+    // In a storyboard-based application, you will often want to do a little preparation before navigation
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        // Get the new view controller using segue.destinationViewController.
+        // Pass the selected object to the new view controller.
+    }
+    */
+
+}
+extension CreateChatViewController:UITableViewDelegate,UITableViewDataSource{
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return 0
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return self.listContact.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        var cell = tableView.dequeueReusableCell(withIdentifier: "cell_contact") as? CreateChatTableViewCell
+        if cell == nil {
+            cell = CreateChatTableViewCell()
+        }
+        let userFriend = self.listContact[indexPath.row]
+        cell?.lblDisplayName.text = userFriend.displayName
+        
+        let newSize = CGSize(width: 50, height: 50)
+        
+        //Kiểm tra hình này đã cache chưa nối có thì lấy ra xài
+        if let avtDownloaded = cache.object(forKey: userFriend.avatarUrl as AnyObject) as? UIImage {
+            cell?.imgAva.image = avtDownloaded
+        } else {
+            //Chứa cache thì lấy hình online và resize , Radius hình
+            cell?.imgAva.image = UIImage.imageWithColor(UIColor.lightGray, size: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+            
+            DispatchQueue.global().async {
+                if let url = URL(string: userFriend.avatarUrl) {
+                    if let data = try? Data(contentsOf: url) {
+                        DispatchQueue.main.async {
+                            if let img = UIImage(data: data) {
+                                
+                                let resultImg = img.scaleImage(newSize: newSize).createRadius(newSize: newSize, radius: 22, byRoundingCorners: .allCorners)
+                                //Cache hình vào ram
+                                self.cache.setObject(resultImg, forKey: userFriend.avatarUrl as AnyObject)
+                                cell?.imgAva.image = resultImg
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        
+        
+        return cell!
+        
+    }
+}

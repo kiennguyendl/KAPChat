@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="11542" systemVersion="16B2657" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="11524"/>
+        <capability name="Constraints to layout margins" minToolsVersion="6.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <tableViewCell contentMode="scaleToFill" selectionStyle="default" indentationWidth="10" reuseIdentifier="Cell" id="KGk-i7-Jjw" customClass="UserTableViewCell" customModule="KAPChat" customModuleProvider="target">
+            <rect key="frame" x="0.0" y="0.0" width="408" height="140"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" ambiguous="YES" tableViewCell="KGk-i7-Jjw" id="H2p-sc-9uM">
+                <rect key="frame" x="0.0" y="0.0" width="408" height="139.5"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" text="Label" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="H12-U6-U74">
+                        <rect key="frame" x="150" y="18" width="230" height="40"/>
+                        <constraints>
+                            <constraint firstAttribute="height" constant="40" id="JkO-oq-Gxq"/>
+                        </constraints>
+                        <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                        <nil key="textColor"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <button opaque="NO" contentMode="scaleToFill" ambiguous="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="tHs-J7-nhD">
+                        <rect key="frame" x="150" y="68" width="100" height="30"/>
+                        <color key="backgroundColor" red="1" green="0.5" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="100" id="01Z-Mw-iy3"/>
+                            <constraint firstAttribute="height" constant="30" id="23Z-Ky-Yl9"/>
+                        </constraints>
+                        <state key="normal" title="Đống ý">
+                            <color key="titleColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                        </state>
+                        <connections>
+                            <action selector="btnAccept:" destination="KGk-i7-Jjw" eventType="touchUpInside" id="vyD-SP-9Yy"/>
+                        </connections>
+                    </button>
+                    <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" misplaced="YES" translatesAutoresizingMaskIntoConstraints="NO" id="muT-mB-ZxF">
+                        <rect key="frame" x="10" y="10" width="120" height="117.5"/>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="120" id="cQJ-nl-qIq"/>
+                            <constraint firstAttribute="height" constant="120" id="ubE-A6-MaF"/>
+                        </constraints>
+                    </imageView>
+                    <button opaque="NO" contentMode="scaleToFill" ambiguous="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Mv3-kp-Nau">
+                        <rect key="frame" x="270" y="68" width="100" height="30"/>
+                        <color key="backgroundColor" red="1" green="0.5" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="100" id="MUb-ez-HvP"/>
+                        </constraints>
+                        <state key="normal" title="Huỷ">
+                            <color key="titleColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                        </state>
+                        <connections>
+                            <action selector="btnCancel:" destination="KGk-i7-Jjw" eventType="touchUpInside" id="pPl-iQ-2dW"/>
+                        </connections>
+                    </button>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="H12-U6-U74" firstAttribute="leading" secondItem="muT-mB-ZxF" secondAttribute="trailing" constant="20" id="FKR-EU-to1"/>
+                    <constraint firstItem="Mv3-kp-Nau" firstAttribute="leading" secondItem="tHs-J7-nhD" secondAttribute="trailing" constant="20" id="GOA-gO-ZXE"/>
+                    <constraint firstItem="tHs-J7-nhD" firstAttribute="leading" secondItem="muT-mB-ZxF" secondAttribute="trailing" constant="20" id="JpN-Wh-pV4"/>
+                    <constraint firstItem="H12-U6-U74" firstAttribute="top" secondItem="H2p-sc-9uM" secondAttribute="topMargin" constant="10" id="Ku9-Bc-Dgz"/>
+                    <constraint firstItem="muT-mB-ZxF" firstAttribute="top" secondItem="H2p-sc-9uM" secondAttribute="top" constant="10" id="Tjc-1R-AU7"/>
+                    <constraint firstItem="muT-mB-ZxF" firstAttribute="leading" secondItem="H2p-sc-9uM" secondAttribute="leading" constant="10" id="jLd-7i-oZz"/>
+                    <constraint firstAttribute="trailingMargin" secondItem="H12-U6-U74" secondAttribute="trailing" constant="20" id="kXz-p4-kZM"/>
+                    <constraint firstItem="tHs-J7-nhD" firstAttribute="top" secondItem="H12-U6-U74" secondAttribute="bottom" constant="10" id="kd2-Pt-4Xa"/>
+                    <constraint firstAttribute="bottom" secondItem="muT-mB-ZxF" secondAttribute="bottom" constant="10" id="ppz-fS-hjr"/>
+                    <constraint firstItem="Mv3-kp-Nau" firstAttribute="top" secondItem="H12-U6-U74" secondAttribute="bottom" constant="10" id="wYG-ap-BaN"/>
+                </constraints>
+            </tableViewCellContentView>
+            <connections>
+                <outlet property="btnAccept" destination="tHs-J7-nhD" id="EK6-2i-t7U"/>
+                <outlet property="btnCancel" destination="Mv3-kp-Nau" id="2Ga-lb-cX1"/>
+                <outlet property="imgAvt" destination="muT-mB-ZxF" id="Wyn-rO-SjH"/>
+                <outlet property="lblDisplatName" destination="H12-U6-U74" id="UKQ-km-30S"/>
+            </connections>
+            <point key="canvasLocation" x="69" y="75"/>
+        </tableViewCell>
+    </objects>
+</document>

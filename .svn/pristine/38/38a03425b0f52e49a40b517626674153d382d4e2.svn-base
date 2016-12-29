@@ -1,0 +1,52 @@
+//
+//  Message.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+import Foundation
+
+enum MessageType {
+    case Text, Photo
+}
+
+class Message: NSObject {
+    var messageId:String
+    var sender:String
+    var content:String
+    var type:MessageType = .Text
+    var createdDate: NSDate = NSDate()
+    
+    var imgName:String?
+    var imgWidth:Int    = 0
+    var imgHeight:Int   = 0
+    
+    init?(mesID: String, messagesInfo: [String:AnyObject]) {
+        guard   let sender = messagesInfo["user_id"] as? String,
+            let content = messagesInfo["content"] as? String else { return nil }
+        
+        self.sender = sender
+        self.content = content
+        self.messageId = mesID
+        
+        if let timeInterval1970 = messagesInfo["time"] as? Double {
+            if let date:NSDate = NSDate(timeIntervalSince1970: timeInterval1970) {
+                self.createdDate = date
+            }
+        }
+        
+        if let type = messagesInfo["type"] as? String {
+            if type == "text" {
+                self.type = .Text
+            } else if type == "photo" {
+                self.type = .Photo
+                self.imgName = (messagesInfo["imgName"] as? String)
+                self.imgWidth   = (messagesInfo["imgWidth"] as? Int) ?? 0
+                self.imgHeight  = (messagesInfo["imgHeight"] as? Int) ?? 0
+            }
+        }
+    }
+}

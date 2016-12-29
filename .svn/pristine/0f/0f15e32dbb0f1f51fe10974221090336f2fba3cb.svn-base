@@ -1,0 +1,72 @@
+//
+//  User.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/8/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+
+import UIKit
+
+class User: NSObject {
+    static let default_avt = "https://firebasestorage.googleapis.com/v0/b/kapchat-ae080.appspot.com/o/Image%2FdefaultUser.png?alt=media&token=bddf5456-7fcf-4565-8809-c0f21167441a"
+    var id:String
+    var displayName:String
+    var avatarUrl:String = default_avt
+    var email:String
+    var isOnline:Bool = false
+    var created_date_1970:NSDate = NSDate()
+    var lastLogin:NSDate = NSDate()
+    var status:String = ""
+    var provider:String = "Firebase"
+    
+    var conversations = [Conversations]()
+    var listFriend:Dictionary<String,Bool>?
+    var requestFriend: Dictionary<String, Bool>?
+    
+    init?(uid:String, JsonData: [String:AnyObject]) {
+        guard let displayName = JsonData["displayName"] as? String ,
+            let email = JsonData["email"] as? String
+            else { return nil }
+        
+        if let avatarUrl = JsonData["avatarUrl"] as? String {
+            self.avatarUrl = avatarUrl
+        }
+        
+        if let isOnline = JsonData["isOnline"] as? Bool {
+            self.isOnline = isOnline
+        }
+        
+        if let created_date_1970 = JsonData["created_date_1970"] as? Double {
+            self.created_date_1970 = NSDate(timeIntervalSince1970: created_date_1970)
+        }
+        
+        if let lastLogin = JsonData["lastLogin"] as? Double {
+            self.lastLogin = NSDate(timeIntervalSince1970: lastLogin)
+        }
+        
+        if let status = JsonData["status"] as? String {
+            self.status = status
+        }
+        
+        if let provider = JsonData["provider"] as? String {
+            self.provider = provider
+        }
+        
+        self.id = uid
+        self.displayName = displayName
+        self.email = email
+        
+        if let conversationsData = JsonData["conversations"] as? [String:AnyObject] {
+            for item in conversationsData {
+                guard let conversation = Conversations(key: item.key, JsonData: item.value as! [String:AnyObject]) else {return}
+                self.conversations.append(conversation)
+            }
+        }
+        self.listFriend = JsonData["listFriend"] as? [String:Bool]
+        self.requestFriend = JsonData["RequestFriend"] as? [String: Bool]
+    }
+    
+    
+}

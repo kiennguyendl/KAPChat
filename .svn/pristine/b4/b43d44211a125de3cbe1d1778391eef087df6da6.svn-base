@@ -1,0 +1,27 @@
+//
+//  SenderTextTableViewCell.swift
+//  KAPChat
+//
+//  Created by Tuan anh Dang on 12/7/16.
+//  Copyright © 2016 Kien Nguyen Dang. All rights reserved.
+//
+
+import UIKit
+
+class SenderTextTableViewCell: UITableViewCell {
+
+    @IBOutlet weak var imgSender: UIImageView!
+    @IBOutlet weak var viewSender: UIView!
+    @IBOutlet weak var lblSender: UILabel!
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        // Initialization code
+    }
+
+    override func setSelected(_ selected: Bool, animated: Bool) {
+        super.setSelected(selected, animated: animated)
+
+        // Configure the view for the selected state
+    }
+    
+}
